@@ -1,5 +1,4 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
-import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 
@@ -13,14 +12,8 @@ const config: ForgeConfig = {
     appCopyright: `Copyright © ${new Date().getFullYear()} SyncBooks`,
   },
   makers: [
-    // Windows: Squirrel installer (.exe setup)
-    new MakerSquirrel({
-      name: 'SyncBooksDesktop',
-      authors: 'SyncBooks',
-      description: 'SyncBooks Desktop - Offline Accounting Software',
-    }),
-    // macOS: ZIP (user extracts the .app)
-    new MakerZIP({}, ['darwin']),
+    // All platforms: ZIP (most reliable without code signing)
+    new MakerZIP({}, ['win32', 'darwin']),
     // Linux: .deb package
     new MakerDeb({
       options: {
