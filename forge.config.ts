@@ -1,4 +1,5 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
+import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 
@@ -10,12 +11,17 @@ const config: ForgeConfig = {
     appBundleId: 'com.syncbooks.desktop',
     appCategoryType: 'public.app-category.finance',
     appCopyright: `Copyright © ${new Date().getFullYear()} SyncBooks`,
-    icon: './assets/icon', // Electron looks for icon.ico (Win), icon.icns (Mac), icon.png (Linux) automatically
   },
   makers: [
-    // Windows & macOS: .zip (portable — extract and run)
-    new MakerZIP({}, ['darwin', 'win32', 'linux']),
-    // Linux: .deb package (Ubuntu/Debian)
+    // Windows: Squirrel installer (.exe setup)
+    new MakerSquirrel({
+      name: 'SyncBooksDesktop',
+      authors: 'SyncBooks',
+      description: 'SyncBooks Desktop - Offline Accounting Software',
+    }),
+    // macOS: ZIP (user extracts the .app)
+    new MakerZIP({}, ['darwin']),
+    // Linux: .deb package
     new MakerDeb({
       options: {
         name: 'syncbooks-desktop',
@@ -23,7 +29,6 @@ const config: ForgeConfig = {
         genericName: 'Accounting Software',
         description: 'Offline-first accounting software for businesses',
         categories: ['Office', 'Utility'],
-        icon: './assets/icon.png',
       },
     }),
   ],

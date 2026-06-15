@@ -11,6 +11,11 @@
 
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell } from 'electron';
 import path from 'path';
+
+// Handle Squirrel Windows startup events (install/uninstall/update)
+// This MUST be the first thing that runs
+if (require('electron-squirrel-startup')) app.quit();
+
 import { startLocalServer, stopLocalServer } from './server';
 import { initializeDatabase } from './database';
 import { SyncEngine } from './sync/sync-engine';
@@ -21,15 +26,6 @@ import log from 'electron-log';
 // Configure logging
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
-
-// Handle Squirrel Windows events (install/uninstall/update)
-if (process.platform === 'win32') {
-  const { handleSquirrelEvent } = (() => {
-    try { return require('electron-squirrel-startup') ? { handleSquirrelEvent: true } : { handleSquirrelEvent: false }; }
-    catch { return { handleSquirrelEvent: false }; }
-  })();
-  if (handleSquirrelEvent) app.quit();
-}
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
