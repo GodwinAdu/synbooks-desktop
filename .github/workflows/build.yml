@@ -6,6 +6,9 @@ on:
       - 'v*' # Triggers on version tags like v1.0.0
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -60,7 +63,6 @@ jobs:
           files: |
             artifacts/**/*.zip
             artifacts/**/*.deb
-            artifacts/**/*.dmg
           draft: false
           generate_release_notes: true
         env:
