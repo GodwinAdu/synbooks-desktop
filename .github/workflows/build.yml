@@ -63,6 +63,7 @@ jobs:
           files: |
             artifacts/**/*.zip
             artifacts/**/*.deb
+            artifacts/**/*.exe
           draft: false
           generate_release_notes: true
         env:
