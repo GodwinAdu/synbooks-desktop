@@ -13,6 +13,7 @@ import { InvoiceTab } from "./components/invoice-tab";
 import { TaxTab } from "./components/tax-tab";
 import { PayrollTab } from "./components/payroll-tab";
 import { CloudSyncTab } from "./components/cloud-sync-tab";
+import { APP_VERSION, APP_NAME } from "@/lib/version";
 import { SubscriptionTab } from "./components/subscription-tab";
 import { ModulesTab } from "./components/modules-tab";
 import { UsersTab } from "./components/users-tab";
@@ -60,6 +61,12 @@ export function SettingsPage() {
           {activeTab === "cloud" && <CloudSyncTab />}
         </div>
       </Tabs>
+
+      {/* App version */}
+      <div className="pt-4 border-t text-center text-xs text-muted-foreground">
+        <p>{APP_NAME} v{APP_VERSION}</p>
+        <p className="mt-0.5">© {new Date().getFullYear()} SyncBooks. All rights reserved.</p>
+      </div>
     </div>
   );
 }

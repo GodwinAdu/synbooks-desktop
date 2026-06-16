@@ -6,10 +6,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, X } from "lucide-react";
+import { APP_VERSION } from "@/lib/version";
 
 const GITHUB_REPO = "GodwinAdu/synbooks-desktop";
-const CHECK_INTERVAL = 6 * 60 * 60 * 1000; // Check every 6 hours
-const CURRENT_VERSION = "1.0.2"; // Update this with each release
+const CHECK_INTERVAL = 6 * 60 * 60 * 1000;
 
 interface ReleaseInfo {
   version: string;
@@ -37,7 +37,7 @@ export function UpdateBanner() {
       const data = await res.json();
       const latestVersion = data.tag_name?.replace("v", "") || "";
 
-      if (latestVersion && isNewer(latestVersion, CURRENT_VERSION)) {
+      if (latestVersion && isNewer(latestVersion, APP_VERSION)) {
         // Find the right asset for this OS
         const platform = detectPlatform();
         const assets: any[] = data.assets || [];

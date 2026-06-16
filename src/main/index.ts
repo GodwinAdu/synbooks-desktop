@@ -67,6 +67,12 @@ async function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+
+    // Handle refresh/navigation — always serve index.html for SPA routing
+    mainWindow.webContents.on('did-fail-load', () => {
+      mainWindow?.loadFile(path.join(__dirname, '../renderer/index.html'));
+    });
+
     // Block DevTools shortcuts in production
     mainWindow.webContents.on('before-input-event', (event, input) => {
       if (input.key === 'F12' || (input.control && input.shift && input.key === 'I')) {
@@ -85,13 +91,16 @@ async function createWindow() {
     mainWindow = null;
   });
 
-  // Minimize to tray instead of closing
-  mainWindow.on('close', (event) => {
-    if (!(app as any).isQuitting) {
-      event.preventDefault();
-      mainWindow?.hide();
-    }
-  });
+  // macOS: close actually closes (no tray behavior)
+  // Windows/Linux: minimize to tray on close (if tray exists)
+  if (process.platform !== 'darwin') {
+    mainWindow.on('close', (event) => {
+      if (!(app as any).isQuitting) {
+        event.preventDefault();
+        mainWindow?.hide();
+      }
+    });
+  }
 }
 
 function createTray() {
