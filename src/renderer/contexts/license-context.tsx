@@ -58,13 +58,32 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchStatus = useCallback(() => {
+    const token = localStorage.getItem("auth-token");
+    if (!token) {
+      setLicense(defaultLicense);
+      setLoading(false);
+      return;
+    }
     api.get("/licensing/status")
       .then((data: any) => setLicense(data))
       .catch(() => setLicense(defaultLicense))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+  useEffect(() => {
+    // Small delay to ensure startTrial() has finished on first launch
+    const timer = setTimeout(fetchStatus, 300);
+    return () => clearTimeout(timer);
+  }, [fetchStatus]);
+
+  // Re-fetch when auth token changes (login/register)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "auth-token") fetchStatus();
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [fetchStatus]);
 
   const canAccess = useCallback((moduleId: string): boolean => {
     if (!license) return true; // loading - allow access

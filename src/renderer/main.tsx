@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/auth-context';
 import { ThemeProvider } from './contexts/theme-context';
 import { SyncProvider } from './contexts/sync-context';
 import { LicenseProvider } from './contexts/license-context';
+import { PermissionProvider } from './contexts/permission-context';
 import { Toaster } from './components/ui/sonner';
 import './styles/globals.css';
 
@@ -14,12 +15,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <LicenseProvider>
-            <SyncProvider>
-              <App />
-              <Toaster richColors />
-            </SyncProvider>
-          </LicenseProvider>
+          <PermissionProvider>
+            <LicenseProvider>
+              <SyncProvider>
+                <App />
+                <Toaster richColors />
+              </SyncProvider>
+            </LicenseProvider>
+          </PermissionProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

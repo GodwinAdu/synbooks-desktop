@@ -18,6 +18,19 @@ export interface Project {
   createdAt: string;
 }
 
+export interface ProjectTask {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string;
+  status: "todo" | "in_progress" | "done";
+  priority: "low" | "normal" | "high" | "urgent";
+  assignedTo?: string;
+  dueDate?: string;
+  completedAt?: string;
+  sortOrder: number;
+}
+
 export const STATUS_COLORS: Record<string, string> = {
   planning: "#3b82f6",
   active: "#10b981",

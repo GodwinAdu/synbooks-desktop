@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Settings as SettingsIcon, DollarSign, FileText, Receipt, Users, Cloud, Crown, Boxes } from "lucide-react";
+import { Building2, Settings as SettingsIcon, DollarSign, FileText, Receipt, Users, Cloud, Crown, Boxes, UserCog } from "lucide-react";
 import { CompanyTab } from "./components/company-tab";
 import { RegionalTab } from "./components/regional-tab";
 import { InvoiceTab } from "./components/invoice-tab";
@@ -15,6 +15,7 @@ import { PayrollTab } from "./components/payroll-tab";
 import { CloudSyncTab } from "./components/cloud-sync-tab";
 import { SubscriptionTab } from "./components/subscription-tab";
 import { ModulesTab } from "./components/modules-tab";
+import { UsersTab } from "./components/users-tab";
 
 const TABS = [
   { value: "company", label: "Company", icon: Building2 },
@@ -22,6 +23,7 @@ const TABS = [
   { value: "invoice", label: "Invoice", icon: FileText },
   { value: "tax", label: "Tax", icon: Receipt },
   { value: "payroll", label: "Payroll", icon: Users },
+  { value: "users", label: "Users & Roles", icon: UserCog },
   { value: "modules", label: "Modules", icon: Boxes },
   { value: "subscription", label: "Subscription", icon: Crown },
   { value: "cloud", label: "Cloud Sync", icon: Cloud },
@@ -52,6 +54,7 @@ export function SettingsPage() {
           {activeTab === "invoice" && <InvoiceTab />}
           {activeTab === "tax" && <TaxTab />}
           {activeTab === "payroll" && <PayrollTab />}
+          {activeTab === "users" && <UsersTab />}
           {activeTab === "modules" && <ModulesTab />}
           {activeTab === "subscription" && <SubscriptionTab />}
           {activeTab === "cloud" && <CloudSyncTab />}

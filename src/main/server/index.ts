@@ -37,6 +37,8 @@ import { productionRouter } from './routes/production';
 import { procurementRouter } from './routes/procurement';
 import { contractsRouter } from './routes/contracts';
 import { licensingRouter } from './routes/licensing';
+import { rolesRouter } from './routes/roles';
+import { usersRouter } from './routes/users';
 import { localAuth } from './middleware/local-auth';
 import log from 'electron-log';
 
@@ -86,6 +88,8 @@ export async function startLocalServer(port: number): Promise<void> {
   app.use('/api/procurement', localAuth, checkModuleAccess('procurement'), procurementRouter);
   app.use('/api/contracts', localAuth, checkModuleAccess('contracts'), contractsRouter);
   app.use('/api/licensing', localAuth, licensingRouter);
+  app.use('/api/roles', localAuth, rolesRouter);
+  app.use('/api/users', usersRouter); // Auth handled inside routes
   
   // Sync routes - bulk-import doesn't require auth (called during login flow)
   app.post('/api/sync/bulk-import', (req: any, res: any, next: any) => {

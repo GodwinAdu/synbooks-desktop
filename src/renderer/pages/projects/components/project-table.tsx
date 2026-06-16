@@ -2,6 +2,7 @@
  * Project DataTable component
  */
 
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
@@ -13,6 +14,8 @@ interface ProjectTableProps {
 }
 
 export function ProjectTable({ projects, onRefresh }: ProjectTableProps) {
+  const navigate = useNavigate();
+
   if (projects.length === 0) return null;
 
   return (
@@ -35,7 +38,7 @@ export function ProjectTable({ projects, onRefresh }: ProjectTableProps) {
             </thead>
             <tbody>
               {projects.map((project) => (
-                <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors">
+                <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/projects/${project.id}`)}>
                   <td className="py-2.5 px-4">
                     <div className="flex items-center gap-2">
                       {project.color && <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: project.color }} />}

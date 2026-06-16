@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { Repository } from '../../database/repository';
 import { signLocalToken, localAuth, AuthenticatedRequest } from '../middleware/local-auth';
+import { ensureDefaultRoles } from '../services/default-roles';
 
 export const authRouter = Router();
 
@@ -75,6 +76,9 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       role: user.role,
       email: user.email,
     });
+
+    // Ensure default roles exist for this org (handles pre-existing orgs)
+    ensureDefaultRoles(user.organizationId);
 
     const org = orgRepo.findById(user.organizationId);
 
@@ -161,6 +165,9 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       isActive: true,
       del_flag: false,
     } as any);
+
+    // Ensure default roles exist for the new org
+    ensureDefaultRoles(org.id);
 
     const token = signLocalToken({
       sub: user.id,
@@ -300,6 +307,50 @@ authRouter.get('/me', localAuth, (req: AuthenticatedRequest, res: Response) => {
       modules: org.modules,
     } : null,
   });
+});
+
+/**
+ * GET /api/auth/permissions
+ * Get the current user's permission map based on their role
+ */
+authRouter.get('/permissions', localAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = userRepo.findById(req.userId!);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const roleName = user.role;
+
+    // Admin and owner have all permissions
+    if (roleName === 'admin' || roleName === 'owner') {
+      const { ALL_PERMISSIONS } = require('../services/default-roles');
+      const permissions: Record<string, boolean> = {};
+      for (const key of ALL_PERMISSIONS) {
+        permissions[key] = true;
+      }
+      res.json({ permissions });
+      return;
+    }
+
+    // Look up the role from the roles table
+    const roleRepo = new Repository<any>('roles');
+    const role = roleRepo.findOne({
+      organizationId: req.organizationId,
+      name: roleName,
+      del_flag: 0,
+    });
+
+    if (!role) {
+      res.json({ permissions: {} });
+      return;
+    }
+
+    res.json({ permissions: role.permissions || {} });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**

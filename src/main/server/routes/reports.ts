@@ -15,26 +15,26 @@ reportsRouter.get('/profit-loss', (req: AuthenticatedRequest, res: Response) => 
 
   // Get revenue accounts grouped by subType
   const revenueAccounts = dbAll(`
-    SELECT a.id, a.name, a.accountSubType as subType,
+    SELECT a.id, a.accountName, a.accountSubType as subType,
       SUM(gl.credit - gl.debit) as amount
     FROM general_ledger gl
     JOIN accounts a ON gl.accountId = a.id
     WHERE gl.organizationId = ? AND a.accountType = 'revenue' AND gl.del_flag = 0${dateFilter}
-    GROUP BY a.id, a.name, a.accountSubType
+    GROUP BY a.id, a.accountName, a.accountSubType
     HAVING amount != 0
-    ORDER BY a.accountSubType, a.name
+    ORDER BY a.accountSubType, a.accountName
   `, params);
 
   // Get expense accounts grouped by subType
   const expenseAccounts = dbAll(`
-    SELECT a.id, a.name, a.accountSubType as subType,
+    SELECT a.id, a.accountName, a.accountSubType as subType,
       SUM(gl.debit - gl.credit) as amount
     FROM general_ledger gl
     JOIN accounts a ON gl.accountId = a.id
     WHERE gl.organizationId = ? AND a.accountType = 'expense' AND gl.del_flag = 0${dateFilter}
-    GROUP BY a.id, a.name, a.accountSubType
+    GROUP BY a.id, a.accountName, a.accountSubType
     HAVING amount != 0
-    ORDER BY a.accountSubType, a.name
+    ORDER BY a.accountSubType, a.accountName
   `, params);
 
   // Group into subType groups
@@ -80,14 +80,14 @@ reportsRouter.get('/balance-sheet', (req: AuthenticatedRequest, res: Response) =
 
   const getGroups = (type: string) => {
     const accounts = dbAll(`
-      SELECT a.id, a.name, a.accountSubType as subType,
+      SELECT a.id, a.accountName, a.accountSubType as subType,
         SUM(CASE WHEN '${type}' IN ('asset','expense') THEN gl.debit - gl.credit ELSE gl.credit - gl.debit END) as amount
       FROM general_ledger gl
       JOIN accounts a ON gl.accountId = a.id
       WHERE gl.organizationId = ? AND a.accountType = '${type}' AND gl.del_flag = 0${dateFilter}
-      GROUP BY a.id, a.name, a.accountSubType
+      GROUP BY a.id, a.accountName, a.accountSubType
       HAVING amount != 0
-      ORDER BY a.accountSubType, a.name
+      ORDER BY a.accountSubType, a.accountName
     `, params);
 
     const map = new Map<string, { subType: string; accounts: any[]; subtotal: number }>();
@@ -139,15 +139,15 @@ reportsRouter.get('/trial-balance', (req: AuthenticatedRequest, res: Response) =
   if (endDate) { dateFilter += ' AND gl.transactionDate <= ?'; params.push(endDate); }
 
   const accounts = dbAll(`
-    SELECT a.id, a.name, a.accountCode as code, a.accountType as type, a.accountSubType as subType,
+    SELECT a.id, a.accountName, a.accountCode as code, a.accountType as type, a.accountSubType as subType,
       SUM(gl.debit) as totalDebit,
       SUM(gl.credit) as totalCredit
     FROM general_ledger gl
     JOIN accounts a ON gl.accountId = a.id
     WHERE gl.organizationId = ? AND gl.del_flag = 0${dateFilter}
-    GROUP BY a.id, a.name, a.accountCode, a.accountType, a.accountSubType
+    GROUP BY a.id, a.accountName, a.accountCode, a.accountType, a.accountSubType
     HAVING totalDebit != 0 OR totalCredit != 0
-    ORDER BY a.accountCode, a.name
+    ORDER BY a.accountCode, a.accountName
   `, params);
 
   const totalDebit = accounts.reduce((s: number, a: any) => s + (a.totalDebit || 0), 0);

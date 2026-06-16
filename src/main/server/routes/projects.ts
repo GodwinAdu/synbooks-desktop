@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../middleware/local-auth';
 
 export const projectsRouter = Router();
 const repo = new Repository<any>('projects');
+const taskRepo = new Repository<any>('project_tasks');
 
 projectsRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
   const { page = '1', pageSize = '20', status } = req.query;
@@ -54,4 +55,45 @@ projectsRouter.delete('/:id', (req: AuthenticatedRequest, res: Response) => {
   if (!existing || existing.organizationId !== req.organizationId) { res.status(404).json({ error: 'Project not found' }); return; }
   repo.softDelete(req.params.id, req.userId);
   res.json({ success: true, message: 'Project deleted' });
+});
+
+// ─── Project Tasks ──────────────────────────────────────────────────────────
+
+projectsRouter.get('/:id/tasks', (req: AuthenticatedRequest, res: Response) => {
+  const project = repo.findById(req.params.id);
+  if (!project || project.organizationId !== req.organizationId) { res.status(404).json({ error: 'Project not found' }); return; }
+  const tasks = taskRepo.find({ where: { organizationId: req.organizationId, projectId: req.params.id, del_flag: 0 }, orderBy: 'sortOrder', order: 'ASC' });
+  res.json({ data: tasks });
+});
+
+projectsRouter.post('/:id/tasks', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const project = repo.findById(req.params.id);
+    if (!project || project.organizationId !== req.organizationId) { res.status(404).json({ error: 'Project not found' }); return; }
+    const task = taskRepo.create({
+      ...req.body,
+      projectId: req.params.id,
+      organizationId: req.organizationId,
+      createdBy: req.userId,
+    });
+    res.status(201).json({ success: true, data: task });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+projectsRouter.put('/:id/tasks/:taskId', (req: AuthenticatedRequest, res: Response) => {
+  const task = taskRepo.findById(req.params.taskId);
+  if (!task || task.organizationId !== req.organizationId || task.projectId !== req.params.id) {
+    res.status(404).json({ error: 'Task not found' }); return;
+  }
+  const updated = taskRepo.update(req.params.taskId, req.body);
+  res.json({ success: true, data: updated });
+});
+
+projectsRouter.delete('/:id/tasks/:taskId', (req: AuthenticatedRequest, res: Response) => {
+  const task = taskRepo.findById(req.params.taskId);
+  if (!task || task.organizationId !== req.organizationId || task.projectId !== req.params.id) {
+    res.status(404).json({ error: 'Task not found' }); return;
+  }
+  taskRepo.softDelete(req.params.taskId, req.userId);
+  res.json({ success: true, message: 'Task deleted' });
 });

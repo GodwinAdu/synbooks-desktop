@@ -41,6 +41,7 @@ const JSON_FIELDS: Record<string, string[]> = {
   work_orders: ["operations"],
   recurring_invoices: ["lineItems"], recurring_journals: ["lineItems"],
   bank_rules: ["conditions", "actions"],
+  roles: ["permissions"],
 };
 
 export class Repository<T extends { id?: string }> {

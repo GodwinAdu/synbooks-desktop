@@ -122,7 +122,7 @@ export function App() {
         <Route path="leave-management" element={<UpgradeGate moduleId="payroll" moduleName="Payroll"><LeaveManagementPage /></UpgradeGate>} />
         {/* Other modules */}
         <Route path="reports/*" element={<UpgradeGate moduleId="reports" moduleName="Reports"><ReportsPage /></UpgradeGate>} />
-        <Route path="projects" element={<UpgradeGate moduleId="projects" moduleName="Projects"><ProjectsPage /></UpgradeGate>} />
+        <Route path="projects/*" element={<UpgradeGate moduleId="projects" moduleName="Projects"><ProjectsPage /></UpgradeGate>} />
         <Route path="budgets" element={<UpgradeGate moduleId="budgets" moduleName="Budgeting"><BudgetsPage /></UpgradeGate>} />
         <Route path="assets" element={<UpgradeGate moduleId="assets" moduleName="Fixed Assets"><AssetsPage /></UpgradeGate>} />
         <Route path="crm/*" element={<UpgradeGate moduleId="crm" moduleName="CRM"><CRMPage /></UpgradeGate>} />
