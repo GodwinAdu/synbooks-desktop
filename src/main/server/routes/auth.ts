@@ -380,3 +380,34 @@ authRouter.post('/change-password', localAuth, async (req: AuthenticatedRequest,
     res.status(500).json({ error: error.message });
   }
 });
+
+/**
+ * PUT /api/auth/profile
+ * Update current user's own profile (name, email, phone)
+ */
+authRouter.put('/profile', localAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { fullName, email, phone } = req.body;
+    const user = userRepo.findById(req.userId!);
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const updates: any = {};
+    if (fullName !== undefined) updates.fullName = fullName;
+    if (email !== undefined) updates.email = email;
+    if (phone !== undefined) updates.phone = phone;
+
+    const updated = userRepo.update(user.id, updates);
+    if (updated) {
+      const { password: _, ...sanitized } = updated as any;
+      res.json({ success: true, user: sanitized });
+    } else {
+      res.status(500).json({ error: 'Failed to update profile' });
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});

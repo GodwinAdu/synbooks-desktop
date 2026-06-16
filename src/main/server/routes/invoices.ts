@@ -21,7 +21,7 @@ const accountRepo = new Repository<any>('accounts');
  * List all invoices for the organization
  */
 invoicesRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
-  const { page = '1', pageSize = '20', status, customerId, search } = req.query;
+  const { page = '1', pageSize = '20', status, customerId, projectId, search } = req.query;
   const where: Record<string, any> = {
     organizationId: req.organizationId,
     del_flag: 0,
@@ -29,6 +29,7 @@ invoicesRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
 
   if (status && status !== 'all') where.status = status;
   if (customerId) where.customerId = customerId;
+  if (projectId) where.projectId = projectId;
 
   const result = invoiceRepo.findPaginated({
     where,
@@ -36,6 +37,17 @@ invoicesRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
     order: 'DESC',
     page: parseInt(page as string),
     pageSize: parseInt(pageSize as string),
+  });
+
+  // Enrich with customer name
+  result.data = result.data.map((inv: any) => {
+    if (inv.customerId) {
+      const customer = customerRepo.findById(inv.customerId);
+      if (customer) {
+        return { ...inv, customer: { name: customer.name, id: customer.id } };
+      }
+    }
+    return { ...inv, customer: null };
   });
 
   res.json(result);
@@ -155,21 +167,25 @@ invoicesRouter.delete('/:id', (req: AuthenticatedRequest, res: Response) => {
  * Mark invoice as sent
  */
 invoicesRouter.post('/:id/send', (req: AuthenticatedRequest, res: Response) => {
-  const existing = invoiceRepo.findById(req.params.id);
-  if (!existing || existing.organizationId !== req.organizationId) {
-    res.status(404).json({ error: 'Invoice not found' });
-    return;
+  try {
+    const existing = invoiceRepo.findById(req.params.id);
+    if (!existing || existing.organizationId !== req.organizationId) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    invoiceRepo.update(req.params.id, { status: 'sent', modifiedBy: req.userId });
+
+    // Auto-post to General Ledger (same as cloud backend)
+    const glResult = postInvoiceToGL(req.params.id, req.organizationId!, existing, req.userId!);
+    if (!glResult.success) {
+      console.warn(`[GL] Invoice ${existing.invoiceNumber} GL posting failed`);
+    }
+
+    res.json({ success: true, message: 'Invoice marked as sent', glPosted: glResult.success });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to send invoice' });
   }
-
-  invoiceRepo.update(req.params.id, { status: 'sent', modifiedBy: req.userId });
-
-  // Auto-post to General Ledger (same as cloud backend)
-  const glResult = postInvoiceToGL(req.params.id, req.organizationId!, existing, req.userId!);
-  if (!glResult.success) {
-    console.warn(`[GL] Invoice ${existing.invoiceNumber} GL posting failed`);
-  }
-
-  res.json({ success: true, message: 'Invoice marked as sent', glPosted: glResult.success });
 });
 
 /**

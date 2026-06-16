@@ -1,199 +1,216 @@
-import { useState } from "react";
-import { toast } from "sonner";
+/**
+ * Year-End Close Page
+ * Smart checklist that auto-checks against real data.
+ * Matches the Next.js app: progress bar, grouped categories, action links.
+ */
+
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api-client";
+import { useNavigate } from "react-router-dom";
 import { Heading } from "@/components/commons/heading";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, CheckCircle2, Circle } from "lucide-react";
-import type { YearEndStep, YearEndStatus } from "./types";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  CheckCircle2, AlertTriangle, Circle, ExternalLink, CalendarCheck, Lock, Info,
+} from "lucide-react";
 
-const initialSteps: YearEndStep[] = [
-  {
-    id: "step-1",
-    title: "Review all open periods",
-    description: "Ensure all accounting periods for the fiscal year are closed",
-    status: "pending",
-  },
-  {
-    id: "step-2",
-    title: "Verify trial balance",
-    description: "Check that total debits equal total credits across all accounts",
-    status: "pending",
-  },
-  {
-    id: "step-3",
-    title: "Post adjusting entries",
-    description: "Record any year-end adjustments such as accruals and deferrals",
-    status: "pending",
-  },
-  {
-    id: "step-4",
-    title: "Generate closing entries",
-    description: "System creates entries to zero out all revenue and expense accounts",
-    status: "pending",
-  },
-  {
-    id: "step-5",
-    title: "Transfer to retained earnings",
-    description: "Net income or loss is transferred to the equity account (Retained Earnings)",
-    status: "pending",
-  },
-  {
-    id: "step-6",
-    title: "Lock fiscal year",
-    description: "Prevent any further changes to the fiscal year's transactions",
-    status: "pending",
-  },
-];
+interface ChecklistItem {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: "complete" | "warning" | "incomplete";
+  detail?: string;
+  actionUrl?: string;
+}
+
+interface YearEndData {
+  fiscalYear: number;
+  items: ChecklistItem[];
+  summary: { complete: number; total: number; percentage: number };
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  reconciliation: "Bank Reconciliation",
+  receivables: "Accounts Receivable",
+  payables: "Accounts Payable",
+  accounting: "Accounting & Closing",
+  reports: "Reports & Backup",
+};
+
+const STATUS_ICON = {
+  complete: <CheckCircle2 className="h-5 w-5 text-emerald-500" />,
+  warning: <AlertTriangle className="h-5 w-5 text-amber-500" />,
+  incomplete: <Circle className="h-5 w-5 text-muted-foreground" />,
+};
 
 export function YearEndClosePage() {
-  const [yearEndStatus, setYearEndStatus] = useState<YearEndStatus>({
-    fiscalYear: 2026,
-    status: "open",
-    steps: initialSteps,
-  });
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [data, setData] = useState<YearEndData | null>(null);
 
-  const allCompleted = yearEndStatus.steps.every((s) => s.status === "completed");
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
-  const handleMarkComplete = (stepId: string) => {
-    setYearEndStatus((prev) => ({
-      ...prev,
-      steps: prev.steps.map((s) =>
-        s.id === stepId
-          ? { ...s, status: "completed" as const, completedAt: new Date().toISOString() }
-          : s
-      ),
-    }));
-    const step = yearEndStatus.steps.find((s) => s.id === stepId);
-    toast.success(`"${step?.title}" marked as complete`);
-  };
-
-  const handleRunYearEndClose = () => {
-    setYearEndStatus((prev) => ({
-      ...prev,
-      status: "completed",
-    }));
-    toast.success(`Year-end close completed for FY ${yearEndStatus.fiscalYear}`);
-  };
-
-  const statusBadge = () => {
-    switch (yearEndStatus.status) {
-      case "open":
-        return <Badge variant="outline" className="border-emerald-500 text-emerald-600">Open</Badge>;
-      case "in_progress":
-        return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">In Progress</Badge>;
-      case "completed":
-        return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">Completed</Badge>;
+  const fetchData = async (year: number) => {
+    setLoading(true);
+    try {
+      const res: any = await api.get("/year-end-close", { year });
+      setData(res);
+    } catch {
+      // Fallback if endpoint not ready
+      setData(null);
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => { fetchData(selectedYear); }, [selectedYear]);
+
+  const handleYearChange = (y: string) => {
+    setSelectedYear(parseInt(y));
+  };
+
+  // Group items by category
+  const grouped = data
+    ? Object.entries(CATEGORY_LABELS)
+        .map(([key, label]) => ({
+          key,
+          label,
+          items: data.items.filter((i) => i.category === key),
+        }))
+        .filter((g) => g.items.length > 0)
+    : [];
+
   return (
     <div className="p-6 space-y-6">
-      <Heading
-        title="Year-End Close"
-        description="Close the fiscal year and prepare for the new period"
-      />
+      <Heading title="Year-End Close" description="Close the fiscal year and prepare for the new period" />
       <Separator />
 
-      {/* Warning Alert */}
+      {/* Info Alert */}
       <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
-        <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-        <div className="text-sm text-amber-800 dark:text-amber-300">
-          <p className="font-medium mb-1">Important Notice</p>
-          <p>
-            Year-end close is a critical process. It creates closing entries that zero out
-            revenue and expense accounts and transfers the net result to Retained Earnings.
-            This cannot be undone.
-          </p>
+        <Info className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+        <div className="text-sm text-amber-800 dark:text-amber-300 space-y-1">
+          <p className="font-semibold">Year-End Close Guide</p>
+          <p>Year-end close ensures all transactions are properly recorded, accounts are reconciled, and your books are ready for the new fiscal year. Complete all checklist items before finalizing.</p>
+          <p className="text-red-700 dark:text-red-400 font-medium mt-2">⚠️ Closing the year creates permanent closing entries. Ensure everything is correct before proceeding.</p>
         </div>
       </div>
 
-      {/* Fiscal Year Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Current Fiscal Year</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-2xl font-bold">FY {yearEndStatus.fiscalYear}</p>
+      {/* Header with year selector and progress */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <CalendarCheck className="h-6 w-6 text-emerald-600" />
+          <div>
+            <h2 className="text-xl font-bold">FY {selectedYear}</h2>
+            {data && (
               <p className="text-sm text-muted-foreground">
-                January 1, {yearEndStatus.fiscalYear} — December 31, {yearEndStatus.fiscalYear}
+                {data.summary.complete}/{data.summary.total} tasks complete
               </p>
-            </div>
-            {statusBadge()}
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <Select value={String(selectedYear)} onValueChange={handleYearChange}>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* Steps Checklist */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Year-End Checklist</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1">
-          {yearEndStatus.steps.map((step, index) => (
-            <div
-              key={step.id}
-              className="flex items-center gap-4 rounded-lg border p-4"
-            >
-              {/* Step indicator */}
-              <div className="shrink-0">
-                {step.status === "completed" ? (
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                ) : (
-                  <Circle className="h-6 w-6 text-gray-300 dark:text-gray-600" />
-                )}
-              </div>
+      {/* Progress bar */}
+      {data && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Overall Progress</span>
+              <span className={`text-sm font-bold ${data.summary.percentage === 100 ? "text-emerald-600" : "text-amber-600"}`}>
+                {data.summary.percentage}%
+              </span>
+            </div>
+            <Progress value={data.summary.percentage} className="h-3" />
+            <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                {data.items.filter((i) => i.status === "complete").length} Complete
+              </span>
+              <span className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+                {data.items.filter((i) => i.status === "warning").length} Needs Attention
+              </span>
+              <span className="flex items-center gap-1">
+                <Circle className="h-3 w-3 text-muted-foreground" />
+                {data.items.filter((i) => i.status === "incomplete").length} To Do
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-              {/* Step content */}
-              <div className="flex-1 min-w-0">
-                <p
-                  className={`font-medium ${
-                    step.status === "completed"
-                      ? "text-muted-foreground line-through"
-                      : ""
-                  }`}
-                >
-                  {index + 1}. {step.title}
-                </p>
-                <p className="text-sm text-muted-foreground">{step.description}</p>
-              </div>
+      {loading && (
+        <div className="text-center py-8 text-sm text-muted-foreground">Loading checklist...</div>
+      )}
 
-              {/* Action */}
-              <div className="shrink-0">
-                {step.status === "pending" && (
+      {/* Checklist by category */}
+      {grouped.map((group) => (
+        <Card key={group.key}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">{group.label}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {group.items.map((item) => (
+              <div key={item.id} className="flex items-start gap-3 py-3 border-b last:border-0">
+                <div className="mt-0.5 shrink-0">{STATUS_ICON[item.status]}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-sm font-medium ${item.status === "complete" ? "line-through text-muted-foreground" : ""}`}>
+                      {item.title}
+                    </span>
+                    {item.detail && (
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${item.status === "warning" ? "border-amber-400 text-amber-600" : ""}`}
+                      >
+                        {item.detail}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                </div>
+                {item.actionUrl && (
                   <Button
+                    variant="ghost"
                     size="sm"
-                    variant="outline"
-                    onClick={() => handleMarkComplete(step.id)}
+                    className="shrink-0 text-xs gap-1"
+                    onClick={() => navigate(item.actionUrl!)}
                   >
-                    Mark Complete
+                    <ExternalLink className="h-3 w-3" /> Go
                   </Button>
                 )}
-                {step.status === "completed" && (
-                  <span className="text-xs text-emerald-600 font-medium">Done</span>
-                )}
               </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      ))}
 
-      {/* Run Year-End Close */}
-      <div className="flex justify-end">
-        <Button
-          variant="destructive"
-          size="lg"
-          disabled={!allCompleted || yearEndStatus.status === "completed"}
-          onClick={handleRunYearEndClose}
-        >
-          {yearEndStatus.status === "completed"
-            ? "Year-End Close Completed"
-            : "Run Year-End Close"}
-        </Button>
-      </div>
+      {/* Completion banner */}
+      {data && data.summary.percentage === 100 && (
+        <Card className="border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle2 className="h-12 w-12 mx-auto text-emerald-500 mb-3" />
+            <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-300">Year-End Complete! 🎉</h3>
+            <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-1">
+              All checklist items for FY {selectedYear} are done. Your books are ready for the new fiscal year.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

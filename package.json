@@ -1,7 +1,7 @@
 {
   "name": "syncbooks-desktop",
   "productName": "SyncBooks Desktop",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "SyncBooks Accounting - Offline Desktop Application",
   "main": "dist/main/index.js",
   "author": "SyncBooks",
@@ -56,6 +56,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/sql.js": "^1.4.9",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",

@@ -4,7 +4,7 @@
  * Only includes tabs relevant for offline desktop use.
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, Settings as SettingsIcon, DollarSign, FileText, Receipt, Users, Cloud, Crown, Boxes, UserCog } from "lucide-react";
 import { CompanyTab } from "./components/company-tab";
@@ -17,8 +17,9 @@ import { APP_VERSION, APP_NAME } from "@/lib/version";
 import { SubscriptionTab } from "./components/subscription-tab";
 import { ModulesTab } from "./components/modules-tab";
 import { UsersTab } from "./components/users-tab";
+import { useLicense } from "@/contexts/license-context";
 
-const TABS = [
+const BASE_TABS = [
   { value: "company", label: "Company", icon: Building2 },
   { value: "regional", label: "Regional", icon: SettingsIcon },
   { value: "invoice", label: "Invoice", icon: FileText },
@@ -27,11 +28,21 @@ const TABS = [
   { value: "users", label: "Users & Roles", icon: UserCog },
   { value: "modules", label: "Modules", icon: Boxes },
   { value: "subscription", label: "Subscription", icon: Crown },
-  { value: "cloud", label: "Cloud Sync", icon: Cloud },
 ] as const;
+
+const CLOUD_TAB = { value: "cloud" as const, label: "Cloud Sync", icon: Cloud };
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState("company");
+  const { license } = useLicense();
+
+  // Only show Cloud Sync tab for Enterprise and Trial plans
+  const planId = license?.planId || "free";
+  const showCloudTab = planId === "enterprise";
+
+  const tabs = useMemo(() => {
+    return showCloudTab ? [...BASE_TABS, CLOUD_TAB] : [...BASE_TABS];
+  }, [showCloudTab]);
 
   return (
     <div className="p-6 space-y-6">
@@ -42,7 +53,7 @@ export function SettingsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="flex flex-wrap h-auto gap-1 p-1">
-          {TABS.map(({ value, label, icon: Icon }) => (
+          {tabs.map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value} className="flex items-center gap-1.5">
               <Icon className="h-4 w-4" />{label}
             </TabsTrigger>
@@ -58,7 +69,7 @@ export function SettingsPage() {
           {activeTab === "users" && <UsersTab />}
           {activeTab === "modules" && <ModulesTab />}
           {activeTab === "subscription" && <SubscriptionTab />}
-          {activeTab === "cloud" && <CloudSyncTab />}
+          {activeTab === "cloud" && showCloudTab && <CloudSyncTab />}
         </div>
       </Tabs>
 

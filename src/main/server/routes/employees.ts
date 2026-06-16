@@ -23,9 +23,22 @@ employeesRouter.get('/:id', (req: AuthenticatedRequest, res: Response) => {
 
 employeesRouter.post('/', checkPlanLimit('employees'), (req: AuthenticatedRequest, res: Response) => {
   try {
+    const data = req.body;
     const count = repo.count({ organizationId: req.organizationId });
-    const employeeNumber = req.body.employeeNumber || `EMP-${String(count + 1).padStart(4, '0')}`;
-    const item = repo.create({ ...req.body, organizationId: req.organizationId, employeeNumber, createdBy: req.userId });
+    const employeeNumber = data.employeeNumber || `EMP-${String(count + 1).padStart(4, '0')}`;
+    
+    // Map baseSalary to salary as well for backward compatibility
+    const salary = data.baseSalary ?? data.salary ?? 0;
+    const fullName = data.name || data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim();
+    
+    const item = repo.create({ 
+      ...data, 
+      organizationId: req.organizationId, 
+      employeeNumber, 
+      salary,
+      fullName,
+      createdBy: req.userId 
+    });
     res.status(201).json({ success: true, data: item });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

@@ -35,7 +35,17 @@ export function AccountTable({ accounts, loading, onEdit, onRefresh }: Props) {
   const columns = getAccountColumns({
     onEdit: onEdit,
     onViewLedger: (account) => navigate(`/general-ledger?account=${account.id}`),
+    onToggleActive: async (account) => {
+      try {
+        await api.put(`/accounts/${account.id}`, { isActive: account.isActive ? 0 : 1 });
+        toast.success(`Account "${account.accountName}" ${account.isActive ? "deactivated" : "activated"}`);
+        onRefresh?.();
+      } catch (e: any) {
+        toast.error(e.message || "Failed to update account");
+      }
+    },
     onDelete: async (account) => {
+      if (!confirm(`Are you sure you want to delete "${account.accountName}"?`)) return;
       try {
         await api.delete(`/accounts/${account.id}`);
         toast.success(`Account "${account.accountName}" deleted`);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Plus, Trash2, Check, AlertCircle } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { ArrowLeft, Plus, Trash2, Check, AlertCircle, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Account } from "../../accounts/types";
 
 interface LineItem {
@@ -36,10 +50,34 @@ export function JournalEntryCreate({ onBack }: JournalEntryCreateProps) {
 
   useEffect(() => {
     api
-      .get("/accounts", { pageSize: 200 })
-      .then((res: any) => setAccounts(res.data || []))
+      .get("/accounts", { pageSize: 500 })
+      .then((res: any) => setAccounts(Array.isArray(res) ? res : res.data || []))
       .catch(console.error);
   }, []);
+
+  // Group accounts by type for the combobox (like Next.js app)
+  const TYPE_LABELS: Record<string, string> = {
+    asset: "Assets",
+    liability: "Liabilities",
+    equity: "Equity",
+    revenue: "Revenue",
+    expense: "Expenses",
+  };
+
+  const grouped = useMemo(() => {
+    return accounts
+      .filter((a) => a.isActive)
+      .reduce<Record<string, Account[]>>((acc, a) => {
+        const type = a.accountType || "other";
+        (acc[type] ||= []).push(a);
+        return acc;
+      }, {});
+  }, [accounts]);
+
+  const accountMap = useMemo(
+    () => new Map(accounts.map((a) => [a.id, a])),
+    [accounts]
+  );
 
   const totalDebits = lineItems.reduce((sum, line) => sum + (line.debit || 0), 0);
   const totalCredits = lineItems.reduce((sum, line) => sum + (line.credit || 0), 0);
@@ -173,94 +211,86 @@ export function JournalEntryCreate({ onBack }: JournalEntryCreateProps) {
               {lineItems.map((line, index) => (
                 <div
                   key={index}
-                  className="grid grid-cols-12 gap-2 items-end border rounded-lg p-3"
+                  className="p-4 border rounded-lg space-y-4"
                 >
-                  {/* Account */}
-                  <div className="col-span-4 space-y-1">
-                    <Label className="text-xs">Account</Label>
-                    <select
-                      value={line.accountId}
-                      onChange={(e) =>
-                        updateLine(index, "accountId", e.target.value)
-                      }
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <option value="">Select account...</option>
-                      {accounts
-                        .filter((a) => a.isActive)
-                        .map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.accountCode} - {a.accountName}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  {/* Line Description */}
-                  <div className="col-span-3 space-y-1">
-                    <Label className="text-xs">Description (optional)</Label>
-                    <Input
-                      value={line.description}
-                      onChange={(e) =>
-                        updateLine(index, "description", e.target.value)
-                      }
-                      placeholder="Line note"
-                      className="h-9"
-                    />
-                  </div>
-
-                  {/* Debit */}
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Debit</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={line.debit || ""}
-                      onChange={(e) =>
-                        updateLine(
-                          index,
-                          "debit",
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
-                      placeholder="0.00"
-                      className="h-9"
-                    />
-                  </div>
-
-                  {/* Credit */}
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Credit</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={line.credit || ""}
-                      onChange={(e) =>
-                        updateLine(
-                          index,
-                          "credit",
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
-                      placeholder="0.00"
-                      className="h-9"
-                    />
-                  </div>
-
-                  {/* Remove */}
-                  <div className="col-span-1 flex justify-center">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium text-sm">Line {index + 1}</h4>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9 text-red-500 hover:text-red-700"
+                      className="h-8 w-8 text-red-500 hover:text-red-700"
                       onClick={() => removeLine(index)}
                       disabled={lineItems.length <= 2}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                  </div>
+
+                  {/* Account Combobox */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Account *</Label>
+                    <AccountCombobox
+                      value={line.accountId}
+                      onChange={(val) => updateLine(index, "accountId", val)}
+                      accounts={accounts}
+                      grouped={grouped}
+                      accountMap={accountMap}
+                      typeLabels={TYPE_LABELS}
+                    />
+                  </div>
+
+                  {/* Line Description */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Line Description (optional)</Label>
+                    <Input
+                      value={line.description}
+                      onChange={(e) =>
+                        updateLine(index, "description", e.target.value)
+                      }
+                      placeholder="Optional line note"
+                      className="h-9"
+                    />
+                  </div>
+
+                  {/* Debit / Credit */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Debit (GHS)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={line.debit || ""}
+                        onChange={(e) =>
+                          updateLine(
+                            index,
+                            "debit",
+                            parseFloat(e.target.value) || 0
+                          )
+                        }
+                        placeholder="0.00"
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Credit (GHS)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={line.credit || ""}
+                        onChange={(e) =>
+                          updateLine(
+                            index,
+                            "credit",
+                            parseFloat(e.target.value) || 0
+                          )
+                        }
+                        placeholder="0.00"
+                        className="h-9"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -387,5 +417,79 @@ export function JournalEntryCreate({ onBack }: JournalEntryCreateProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Account Combobox (searchable, grouped by type — like Next.js app) ──────
+function AccountCombobox({
+  value,
+  onChange,
+  accounts,
+  grouped,
+  accountMap,
+  typeLabels,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  accounts: Account[];
+  grouped: Record<string, Account[]>;
+  accountMap: Map<string, Account>;
+  typeLabels: Record<string, string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? accountMap.get(value) : null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "w-full justify-between h-9 font-normal text-sm",
+            !value && "text-muted-foreground"
+          )}
+        >
+          {selected
+            ? `${selected.accountCode} — ${selected.accountName}`
+            : "Select account..."}
+          <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[400px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search accounts..." />
+          <CommandList>
+            <CommandEmpty>No account found.</CommandEmpty>
+            {Object.entries(grouped).map(([type, accts]) => (
+              <CommandGroup key={type} heading={typeLabels[type] || type}>
+                {accts.map((account) => (
+                  <CommandItem
+                    key={account.id}
+                    value={`${account.accountCode} ${account.accountName}`}
+                    onSelect={() => {
+                      onChange(account.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === account.id ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span className="font-mono text-xs mr-2 text-muted-foreground">
+                      {account.accountCode}
+                    </span>
+                    {account.accountName}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

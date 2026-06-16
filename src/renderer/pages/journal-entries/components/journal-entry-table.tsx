@@ -8,11 +8,12 @@ interface Props {
   entries: JournalEntry[];
   loading: boolean;
   onPost: (id: string) => void;
+  onVoid: (id: string) => void;
   onDelete: (id: string) => void;
   onView: (id: string) => void;
 }
 
-export function JournalEntryTable({ entries, loading, onPost, onDelete, onView }: Props) {
+export function JournalEntryTable({ entries, loading, onPost, onVoid, onDelete, onView }: Props) {
   if (loading) {
     return <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
   }
@@ -20,6 +21,7 @@ export function JournalEntryTable({ entries, loading, onPost, onDelete, onView }
   const columns = getJournalEntryColumns({
     onView: (entry) => onView(entry.id),
     onPost: (entry) => onPost(entry.id),
+    onVoid: (entry) => onVoid(entry.id),
     onDelete: (entry) => onDelete(entry.id),
   });
 

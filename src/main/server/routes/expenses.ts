@@ -11,10 +11,11 @@ export const expensesRouter = Router();
 const expenseRepo = new Repository<any>('expenses');
 
 expensesRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
-  const { page = '1', pageSize = '20', status, vendorId } = req.query;
+  const { page = '1', pageSize = '20', status, vendorId, projectId } = req.query;
   const where: Record<string, any> = { organizationId: req.organizationId, del_flag: 0 };
   if (status && status !== 'all') where.status = status;
   if (vendorId) where.vendorId = vendorId;
+  if (projectId) where.projectId = projectId;
 
   const result = expenseRepo.findPaginated({
     where, orderBy: 'date', order: 'DESC',

@@ -9,7 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Edit, Trash2, Lock } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Trash2, Lock, ToggleLeft, ToggleRight } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { Account } from "../types";
 
@@ -25,6 +25,7 @@ export function getAccountColumns(actions: {
   onEdit?: (account: Account) => void;
   onDelete?: (account: Account) => void;
   onViewLedger?: (account: Account) => void;
+  onToggleActive?: (account: Account) => void;
 }): ColumnDef<Account>[] {
   return [
     {
@@ -73,7 +74,7 @@ export function getAccountColumns(actions: {
       cell: ({ row }) => {
         const active = row.getValue("isActive");
         return (
-          <Badge variant="outline" className={active ? "border-emerald-600 text-emerald-600" : ""}>
+          <Badge variant="outline" className={active ? "border-emerald-600 text-emerald-600" : "border-red-400 text-red-500"}>
             {active ? "Active" : "Inactive"}
           </Badge>
         );
@@ -83,6 +84,7 @@ export function getAccountColumns(actions: {
       id: "actions",
       cell: ({ row }) => {
         const account = row.original;
+        const hasBalance = Math.abs(account.currentBalance || 0) > 0.01;
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -100,8 +102,17 @@ export function getAccountColumns(actions: {
                   <Edit className="h-4 w-4 mr-2" />Edit
                 </DropdownMenuItem>
               )}
+              {!account.isSystemAccount && (
+                <DropdownMenuItem onClick={() => actions.onToggleActive?.(account)}>
+                  {account.isActive ? (
+                    <><ToggleLeft className="h-4 w-4 mr-2" />Deactivate</>
+                  ) : (
+                    <><ToggleRight className="h-4 w-4 mr-2" />Activate</>
+                  )}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
-              {!account.isSystemAccount && Math.abs(account.currentBalance || 0) < 0.01 && (
+              {!account.isSystemAccount && !hasBalance && (
                 <DropdownMenuItem className="text-red-600" onClick={() => actions.onDelete?.(account)}>
                   <Trash2 className="h-4 w-4 mr-2" />Delete
                 </DropdownMenuItem>

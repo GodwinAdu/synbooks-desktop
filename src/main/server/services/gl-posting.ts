@@ -54,29 +54,71 @@ export function getOrCreateAccount(organizationId: string, accountType: string, 
   const db = getDB();
   const meta = ACCOUNT_DEFAULTS[accountName] || { code: `9${Date.now().toString().slice(-3)}`, type: accountType, subType: accountType };
 
-  // Try find by name first
-  let stmt = db.prepare(`SELECT id FROM accounts WHERE organizationId = ? AND accountName = ? AND del_flag = 0 LIMIT 1`);
-  stmt.bind([organizationId, accountName]);
-  if (stmt.step()) { const id = (stmt.getAsObject() as any).id; stmt.free(); return id; }
-  stmt.free();
+  try {
+    // Try find by name first
+    let stmt = db.prepare(`SELECT id FROM accounts WHERE organizationId = ? AND accountName = ? AND del_flag = 0 LIMIT 1`);
+    stmt.bind([organizationId, accountName]);
+    if (stmt.step()) { const id = (stmt.getAsObject() as any).id; stmt.free(); return id; }
+    stmt.free();
 
-  // Try find by code
-  stmt = db.prepare(`SELECT id FROM accounts WHERE organizationId = ? AND accountCode = ? AND del_flag = 0 LIMIT 1`);
-  stmt.bind([organizationId, meta.code]);
-  if (stmt.step()) { const id = (stmt.getAsObject() as any).id; stmt.free(); return id; }
-  stmt.free();
+    // Try find by code
+    stmt = db.prepare(`SELECT id FROM accounts WHERE organizationId = ? AND accountCode = ? AND del_flag = 0 LIMIT 1`);
+    stmt.bind([organizationId, meta.code]);
+    if (stmt.step()) { const id = (stmt.getAsObject() as any).id; stmt.free(); return id; }
+    stmt.free();
 
-  // Doesn't exist — create it
-  const id = uuid();
-  const now = new Date().toISOString();
-  db.run(
-    `INSERT INTO accounts (id, organizationId, accountCode, accountName, accountType, accountSubType, level, isParent, currency, currentBalance, debitBalance, creditBalance, isActive, isSystemAccount, allowManualJournal, del_flag, createdBy, mod_flag, createdAt, updatedAt, _dirty)
-     VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'GHS', 0, 0, 0, 1, 1, 1, 0, ?, 0, ?, ?, 1)`,
-    [id, organizationId, meta.code, accountName, meta.type, meta.subType, createdBy, now, now]
-  );
-  saveToDisk();
-  log.info(`[GL] Auto-created account: ${meta.code} - ${accountName} (${meta.type})`);
-  return id;
+    // Try find by type (last resort — use any existing account of the same type)
+    stmt = db.prepare(`SELECT id FROM accounts WHERE organizationId = ? AND accountType = ? AND del_flag = 0 AND isActive = 1 ORDER BY accountCode ASC LIMIT 1`);
+    stmt.bind([organizationId, meta.type]);
+    if (stmt.step()) {
+      const existingId = (stmt.getAsObject() as any).id;
+      stmt.free();
+      // We found an account of the same type — but prefer creating the specific one
+      // Only use this as fallback if creation fails below
+    } else {
+      stmt.free();
+    }
+
+    // Doesn't exist — create it
+    const id = uuid();
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO accounts (id, organizationId, accountCode, accountName, accountType, accountSubType, level, isParent, currency, openingBalance, currentBalance, debitBalance, creditBalance, isActive, isSystemAccount, allowManualJournal, del_flag, createdBy, mod_flag, createdAt, updatedAt, _syncVersion, _dirty)
+       VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'GHS', 0, 0, 0, 0, 1, 1, 1, 0, ?, 0, ?, ?, 0, 1)`,
+      [id, organizationId, meta.code, accountName, meta.type, meta.subType, createdBy, now, now]
+    );
+    saveToDisk();
+    log.info(`[GL] Auto-created account: ${meta.code} - ${accountName} (${meta.type})`);
+    return id;
+  } catch (err: any) {
+    log.error(`[GL] Failed to getOrCreateAccount "${accountName}":`, err.message);
+    
+    // Fallback: try to find ANY account of this type
+    try {
+      const stmt = db.prepare(`SELECT id FROM accounts WHERE organizationId = ? AND accountType = ? AND del_flag = 0 LIMIT 1`);
+      stmt.bind([organizationId, meta.type]);
+      if (stmt.step()) { const id = (stmt.getAsObject() as any).id; stmt.free(); return id; }
+      stmt.free();
+    } catch {}
+
+    // Absolute fallback: create with unique code to avoid conflicts
+    try {
+      const id = uuid();
+      const now = new Date().toISOString();
+      const uniqueCode = `${meta.code}-${Date.now().toString(36)}`;
+      db.run(
+        `INSERT INTO accounts (id, organizationId, accountCode, accountName, accountType, accountSubType, level, isParent, currency, openingBalance, currentBalance, debitBalance, creditBalance, isActive, isSystemAccount, allowManualJournal, del_flag, createdBy, mod_flag, createdAt, updatedAt, _syncVersion, _dirty)
+         VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'GHS', 0, 0, 0, 0, 1, 1, 1, 0, ?, 0, ?, ?, 0, 1)`,
+        [id, organizationId, uniqueCode, accountName, meta.type, meta.subType, createdBy, now, now]
+      );
+      saveToDisk();
+      log.info(`[GL] Created account with unique code: ${uniqueCode} - ${accountName}`);
+      return id;
+    } catch (fallbackErr: any) {
+      log.error(`[GL] Absolute fallback failed:`, fallbackErr.message);
+      throw new Error(`Cannot create or find account "${accountName}": ${err.message}`);
+    }
+  }
 }
 
 // ─── Update Account Balance ─────────────────────────────────────────────────

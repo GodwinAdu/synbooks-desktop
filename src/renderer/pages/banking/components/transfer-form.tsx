@@ -62,18 +62,18 @@ export function TransferForm({ accounts, onBack }: Props) {
       await api.post("/banking/transactions", {
         bankAccountId: form.fromAccountId,
         transactionDate: form.transactionDate,
-        transactionType: "transfer",
+        transactionType: "withdrawal",
         amount: form.amount,
-        description: form.description,
+        description: `Transfer to ${accounts.find(a => a.id === form.toAccountId)?.accountName || "account"}: ${form.description}`,
         referenceNumber: form.referenceNumber || undefined,
       });
       // Create deposit to destination account
       await api.post("/banking/transactions", {
         bankAccountId: form.toAccountId,
         transactionDate: form.transactionDate,
-        transactionType: "transfer",
+        transactionType: "deposit",
         amount: form.amount,
-        description: form.description,
+        description: `Transfer from ${accounts.find(a => a.id === form.fromAccountId)?.accountName || "account"}: ${form.description}`,
         referenceNumber: form.referenceNumber || undefined,
       });
       toast.success("Transfer completed successfully");

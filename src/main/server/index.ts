@@ -24,6 +24,8 @@ import { payrollRouter } from './routes/payroll';
 import { bankingRouter } from './routes/banking';
 import { journalEntriesRouter } from './routes/journal-entries';
 import { generalLedgerRouter } from './routes/general-ledger';
+import { periodCloseRouter } from './routes/period-close';
+import { yearEndCloseRouter } from './routes/year-end-close';
 import { reportsRouter } from './routes/reports';
 import { projectsRouter } from './routes/projects';
 import { budgetsRouter } from './routes/budgets';
@@ -77,6 +79,8 @@ export async function startLocalServer(port: number): Promise<void> {
   app.use('/api/banking', localAuth, bankingRouter); // always available (banking module)
   app.use('/api/journal-entries', localAuth, journalEntriesRouter); // accounting - always available
   app.use('/api/general-ledger', localAuth, generalLedgerRouter); // accounting - always available
+  app.use('/api/period-close', localAuth, periodCloseRouter); // accounting - always available
+  app.use('/api/year-end-close', localAuth, yearEndCloseRouter); // accounting - always available
   app.use('/api/reports', localAuth, reportsRouter); // always available (reports module)
   app.use('/api/projects', localAuth, checkModuleAccess('projects'), projectsRouter);
   app.use('/api/budgets', localAuth, checkModuleAccess('budgets'), budgetsRouter);

@@ -51,6 +51,7 @@ import { LeaveManagementPage } from "./pages/leave-management";
 import { ProductionPage } from "./pages/production";
 import { ProcurementPage } from "./pages/procurement";
 import { ContractsPage } from "./pages/contracts";
+import { ProfilePage } from "./pages/profile";
 import { UpgradeGate } from "./components/commons/upgrade-gate";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -130,8 +131,9 @@ export function App() {
         <Route path="production/*" element={<UpgradeGate moduleId="production" moduleName="Production"><ProductionPage /></UpgradeGate>} />
         <Route path="procurement/*" element={<UpgradeGate moduleId="procurement" moduleName="Procurement"><ProcurementPage /></UpgradeGate>} />
         <Route path="contracts" element={<UpgradeGate moduleId="contracts" moduleName="Contracts"><ContractsPage /></UpgradeGate>} />
-        {/* Settings - always accessible */}
+        {/* Settings & Profile - always accessible */}
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
 
       {/* Fallback */}

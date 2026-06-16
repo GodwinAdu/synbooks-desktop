@@ -9,12 +9,10 @@ import { SidebarNav } from "./sidebar-nav";
 import { SidebarUserMenu } from "./sidebar-user-menu";
 import { SidebarSyncStatus } from "./sidebar-sync-status";
 import { useSidebarStore } from "./sidebar-store";
-import { Button } from "@/components/ui/button";
-import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function AppSidebar() {
-  const { collapsed, toggle } = useSidebarStore();
+  const { collapsed } = useSidebarStore();
 
   return (
     <aside
@@ -24,7 +22,7 @@ export function AppSidebar() {
       )}
     >
       {/* Header / Brand */}
-      <div className="h-14 flex items-center justify-between px-3 border-b border-sidebar-border shrink-0">
+      <div className="h-12 flex items-center px-3 border-b border-sidebar-border shrink-0">
         {!collapsed && (
           <div className="flex items-center gap-2">
             <div className="size-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
@@ -41,15 +39,6 @@ export function AppSidebar() {
             <span className="text-primary-foreground text-xs font-bold">S</span>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground", collapsed && "mx-auto mt-0")}
-          onClick={toggle}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </Button>
       </div>
 
       {/* Navigation (scrollable) */}

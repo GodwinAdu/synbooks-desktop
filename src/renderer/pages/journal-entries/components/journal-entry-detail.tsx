@@ -14,7 +14,8 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Send, Ban, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import type { JournalEntry } from "../types";
 
 const statusStyles: Record<string, string> = {
@@ -31,15 +32,68 @@ interface JournalEntryDetailProps {
 
 export function JournalEntryDetail({ entryId, onBack }: JournalEntryDetailProps) {
   const [entry, setEntry] = useState<JournalEntry | null>(null);
+  const [accounts, setAccounts] = useState<Map<string, any>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .get(`/journal-entries/${entryId}`)
-      .then((res: any) => setEntry(res.data || res))
+    Promise.all([
+      api.get(`/journal-entries/${entryId}`),
+      api.get("/accounts", { pageSize: 500 }),
+    ])
+      .then(([entryRes, accountsRes]: any[]) => {
+        setEntry(entryRes.data || entryRes);
+        // Build a map of accountId -> account for quick lookup
+        const accts = Array.isArray(accountsRes) ? accountsRes : accountsRes.data || [];
+        const map = new Map<string, any>();
+        accts.forEach((a: any) => map.set(a.id, a));
+        setAccounts(map);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [entryId]);
+
+  // Helper to get account display name
+  const getAccountDisplay = (line: any) => {
+    const account = accounts.get(line.accountId);
+    if (account) return { name: account.accountName, code: account.accountCode };
+    if (line.accountName) return { name: line.accountName, code: line.accountCode };
+    return { name: "Unknown Account", code: "" };
+  };
+
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const handlePost = async () => {
+    if (!entry) return;
+    setActionLoading("post");
+    try {
+      await api.post(`/journal-entries/${entry.id}/post`);
+      toast.success("Journal entry posted successfully");
+      // Refresh
+      const res: any = await api.get(`/journal-entries/${entry.id}`);
+      setEntry(res.data || res);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to post entry");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleVoid = async () => {
+    if (!entry) return;
+    if (!confirm("Are you sure you want to void this journal entry? This will reverse the GL postings.")) return;
+    setActionLoading("void");
+    try {
+      await api.post(`/journal-entries/${entry.id}/void`);
+      toast.success("Journal entry voided successfully");
+      // Refresh
+      const res: any = await api.get(`/journal-entries/${entry.id}`);
+      setEntry(res.data || res);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to void entry");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -68,22 +122,57 @@ export function JournalEntryDetail({ entryId, onBack }: JournalEntryDetailProps)
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">
-            Entry #{entry.entryNumber || entry.id.slice(0, 8)}
-          </h1>
-          <Badge
-            className={cn(
-              "capitalize border-0",
-              statusStyles[entry.status] || "bg-gray-100 text-gray-800"
-            )}
-          >
-            {entry.status}
-          </Badge>
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">
+              Entry #{entry.entryNumber || entry.id.slice(0, 8)}
+            </h1>
+            <Badge
+              className={cn(
+                "capitalize border-0",
+                statusStyles[entry.status] || "bg-gray-100 text-gray-800"
+              )}
+            >
+              {entry.status}
+            </Badge>
+          </div>
+        </div>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          {entry.status === "draft" && (
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={!!actionLoading}
+              onClick={handlePost}
+            >
+              {actionLoading === "post" ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-1" />
+              )}
+              Post Entry
+            </Button>
+          )}
+          {entry.status === "posted" && (
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!!actionLoading}
+              onClick={handleVoid}
+            >
+              {actionLoading === "void" ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Ban className="h-4 w-4 mr-1" />
+              )}
+              Void Entry
+            </Button>
+          )}
         </div>
       </div>
       <Separator />
@@ -181,11 +270,11 @@ export function JournalEntryDetail({ entryId, onBack }: JournalEntryDetailProps)
                     <TableCell>
                       <div>
                         <span className="font-medium">
-                          {line.accountName || "Unknown Account"}
+                          {getAccountDisplay(line).name}
                         </span>
-                        {line.accountId && (
+                        {getAccountDisplay(line).code && (
                           <p className="text-xs text-muted-foreground font-mono">
-                            {line.accountId.slice(0, 8)}
+                            {getAccountDisplay(line).code}
                           </p>
                         )}
                       </div>

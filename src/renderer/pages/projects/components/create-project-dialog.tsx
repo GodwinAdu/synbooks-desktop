@@ -305,7 +305,7 @@ function AccountSelect({ value, onChange, accountType, placeholder }: { value: s
 
   useEffect(() => {
     api.get("/accounts", { accountType, pageSize: 100 })
-      .then((r: any) => setAccounts(r.data || []))
+      .then((r: any) => setAccounts(Array.isArray(r) ? r : r.data || []))
       .catch(() => {});
   }, [accountType]);
 

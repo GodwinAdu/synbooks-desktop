@@ -5,7 +5,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Edit, Trash2, CheckCircle, Send } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Trash2, CheckCircle, Send, Ban } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { JournalEntry } from "../types";
 
@@ -19,6 +19,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 export function getJournalEntryColumns(actions: {
   onView?: (entry: JournalEntry) => void;
   onPost?: (entry: JournalEntry) => void;
+  onVoid?: (entry: JournalEntry) => void;
   onDelete?: (entry: JournalEntry) => void;
 }): ColumnDef<JournalEntry>[] {
   return [
@@ -79,6 +80,11 @@ export function getJournalEntryColumns(actions: {
               {entry.status === "draft" && (
                 <DropdownMenuItem onClick={() => actions.onPost?.(entry)}>
                   <Send className="h-4 w-4 mr-2" />Post Entry
+                </DropdownMenuItem>
+              )}
+              {entry.status === "posted" && (
+                <DropdownMenuItem className="text-red-600" onClick={() => actions.onVoid?.(entry)}>
+                  <Ban className="h-4 w-4 mr-2" />Void Entry
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />

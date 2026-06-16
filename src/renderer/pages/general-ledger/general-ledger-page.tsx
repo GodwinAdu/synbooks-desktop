@@ -15,16 +15,39 @@ export function GeneralLedgerPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
 
   useEffect(() => {
-    // Load GL transactions
-    api.get("/general-ledger", { pageSize: 500 })
-      .then((res: any) => setTransactions(res.data || []))
+    // Load GL transactions, accounts, and journal entries together
+    Promise.all([
+      api.get("/general-ledger", { pageSize: 500 }),
+      api.get("/accounts", { pageSize: 500 }),
+      api.get("/journal-entries", { pageSize: 500 }),
+    ])
+      .then(([glRes, accountsRes, jeRes]: any[]) => {
+        const accts = Array.isArray(accountsRes) ? accountsRes : accountsRes.data || [];
+        setAccounts(accts);
+
+        // Build lookup maps
+        const accountMap = new Map<string, any>();
+        accts.forEach((a: any) => accountMap.set(a.id, a));
+
+        const jeMap = new Map<string, any>();
+        (jeRes.data || []).forEach((je: any) => jeMap.set(je.id, je));
+
+        // Enrich GL entries with account names and references client-side
+        const rawData = glRes.data || [];
+        const enriched = rawData.map((gl: any) => {
+          const account = accountMap.get(gl.accountId);
+          const je = jeMap.get(gl.journalEntryId);
+          return {
+            ...gl,
+            accountName: gl.accountName || account?.accountName || "Unknown",
+            accountCode: gl.accountCode || account?.accountCode || "",
+            entryNumber: gl.entryNumber || gl.referenceNumber || je?.entryNumber || "—",
+          };
+        });
+        setTransactions(enriched);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
-
-    // Load accounts for filter
-    api.get("/accounts", { pageSize: 500 })
-      .then((res: any) => setAccounts(Array.isArray(res) ? res : res.data || []))
-      .catch(console.error);
   }, []);
 
   // Filter by account if selected

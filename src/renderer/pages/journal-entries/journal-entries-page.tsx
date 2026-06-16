@@ -44,6 +44,17 @@ export function JournalEntriesPage() {
     }
   };
 
+  const handleVoid = async (id: string) => {
+    if (!confirm("Are you sure you want to void this journal entry? This will reverse the GL postings.")) return;
+    try {
+      await api.post(`/journal-entries/${id}/void`);
+      toast.success("Journal entry voided successfully");
+      fetchEntries();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to void entry");
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await api.delete(`/journal-entries/${id}`);
@@ -179,6 +190,7 @@ export function JournalEntriesPage() {
         entries={filteredEntries}
         loading={loading}
         onPost={handlePost}
+        onVoid={handleVoid}
         onDelete={handleDelete}
         onView={handleViewEntry}
       />

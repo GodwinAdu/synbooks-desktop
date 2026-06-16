@@ -16,6 +16,30 @@ generalLedgerRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
     page: parseInt(page as string), pageSize: parseInt(pageSize as string),
   });
 
+  // Enrich with account names and entry numbers
+  const accountRepo = new Repository<any>('accounts');
+  const jeRepo = new Repository<any>('journal_entries');
+  
+  entries.data = entries.data.map((gl: any) => {
+    // Resolve account name
+    if (gl.accountId && !gl.accountName) {
+      const account = accountRepo.findById(gl.accountId);
+      if (account) {
+        gl.accountName = account.accountName;
+        gl.accountCode = account.accountCode;
+      }
+    }
+    // Resolve reference/entry number from journal entry
+    if (gl.journalEntryId && !gl.entryNumber) {
+      const je = jeRepo.findById(gl.journalEntryId);
+      if (je) {
+        gl.entryNumber = je.entryNumber;
+        gl.referenceNumber = gl.referenceNumber || je.entryNumber;
+      }
+    }
+    return gl;
+  });
+
   res.json(entries);
 });
 

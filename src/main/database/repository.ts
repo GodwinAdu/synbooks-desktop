@@ -30,10 +30,10 @@ const JSON_FIELDS: Record<string, string[]> = {
   users: ["organizations", "permissions"],
   invoices: ["lineItems"], bills: ["lineItems"], estimates: ["lineItems"],
   credit_notes: ["lineItems"], purchase_orders: ["lineItems"], journal_entries: ["lineItems"],
-  products: ["variants", "bundleItems", "suppliers", "images", "customFields"],
+  products: ["variants", "bundleItems", "suppliers", "images", "priceTiers", "customFields"],
   employees: ["address", "allowances", "bankDetails", "taxInfo"],
   payroll_runs: ["employeePayments"],
-  customers: ["address"], vendors: ["address", "bankDetails"],
+  customers: ["address", "billingAddress"], vendors: ["address", "billingAddress", "bankDetails"],
   projects: ["members", "tags"], budgets: ["lineItems"],
   crm_contacts: ["tags", "customFields"], pos_sales: ["lineItems", "splitPayments"],
   bill_of_materials: ["materials"],
@@ -61,7 +61,9 @@ export class Repository<T extends { id?: string }> {
       }
     }
 
-    const keys = Object.keys(record);
+    // Only insert columns that exist in the table (prevents "no column named X" errors)
+    const validCols = this.getTableColumns();
+    const keys = Object.keys(record).filter(k => validCols.includes(k));
     const placeholders = keys.map(() => "?").join(", ");
     const values = keys.map((k) => record[k] ?? null);
 

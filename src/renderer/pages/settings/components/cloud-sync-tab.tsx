@@ -21,7 +21,7 @@ import { Cloud, Database, Shield, RefreshCw, Unplug, Download, CheckCircle2, Ale
 export function CloudSyncTab() {
   const { user, login } = useAuth();
   const { status, isOnline } = useSync();
-  const { refresh: refreshLicense } = useLicense();
+  const { license, refresh: refreshLicense } = useLicense();
 
   const [cloudUrl, setCloudUrl] = useState("http://localhost:5000");
   const [cloudEmail, setCloudEmail] = useState("");
@@ -31,6 +31,49 @@ export function CloudSyncTab() {
   const [connectSuccess, setConnectSuccess] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState("");
+
+  // Gate cloud sync to Enterprise plan only
+  const planId = license?.planId || "free";
+  const hasCloudAccess = planId === "enterprise";
+
+  if (!hasCloudAccess) {
+    return (
+      <div className="space-y-6 max-w-3xl">
+        <Card className="border-2 border-purple-200 dark:border-purple-800">
+          <CardContent className="pt-6 text-center space-y-4">
+            <div className="h-16 w-16 rounded-full bg-purple-100 dark:bg-purple-950/30 flex items-center justify-center mx-auto">
+              <Cloud className="h-8 w-8 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Cloud Sync</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Cloud Sync is available on the <span className="font-semibold text-purple-600">Enterprise</span> plan.
+              </p>
+            </div>
+            <div className="bg-muted rounded-lg p-4 text-left space-y-2 text-sm">
+              <p className="font-medium">With Cloud Sync you can:</p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                <li>Sync data between desktop and web automatically</li>
+                <li>Access your data from any device via the web app</li>
+                <li>Automatic cloud backups of all your data</li>
+                <li>Multi-device access for your team</li>
+              </ul>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Current plan: <span className="font-medium capitalize">{planId}</span>
+            </p>
+            <Button className="bg-purple-600 hover:bg-purple-700" onClick={() => {
+              // Navigate to subscription tab
+              const tabTrigger = document.querySelector('[data-value="subscription"]') as HTMLElement;
+              tabTrigger?.click();
+            }}>
+              Upgrade to Enterprise
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleConnectCloud = async () => {
     if (!cloudUrl || !cloudEmail || !cloudPassword) {

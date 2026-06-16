@@ -24,8 +24,25 @@ payrollRouter.post('/', (req: AuthenticatedRequest, res: Response) => {
     const data = req.body;
     const count = repo.count({ organizationId: req.organizationId });
     const runNumber = data.runNumber || `PAY-${String(count + 1).padStart(4, '0')}`;
-    const item = repo.create({ ...data, organizationId: req.organizationId, runNumber, createdBy: req.userId });
-    res.status(201).json({ success: true, data: item });
+    
+    // Map form field names to schema column names
+    const item = repo.create({
+      organizationId: req.organizationId,
+      runNumber,
+      payPeriod: data.payPeriod,
+      payDate: data.payDate,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      status: data.status || 'draft',
+      employeePayments: data.employees || data.employeePayments || [],
+      totalGrossPay: data.totalGross ?? data.totalGrossPay ?? 0,
+      totalDeductions: data.totalDeductions ?? 0,
+      totalNetPay: data.totalNet ?? data.totalNetPay ?? 0,
+      employeeCount: data.employees?.length ?? data.employeeCount ?? 0,
+      notes: data.notes,
+      createdBy: req.userId,
+    });
+    res.status(201).json({ success: true, data: item, id: item.id });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
