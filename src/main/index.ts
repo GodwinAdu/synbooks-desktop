@@ -67,15 +67,34 @@ async function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // In production, find the renderer relative to the app root
-    const rendererPath = path.join(app.getAppPath(), 'dist', 'renderer', 'index.html');
+    // app.getAppPath() points to the asar or the app folder
+    const appPath = app.getAppPath();
+    let rendererPath = path.join(appPath, 'dist', 'renderer', 'index.html');
+    
+    // Fallback: check if file exists, if not try alternative paths
+    if (!require('fs').existsSync(rendererPath)) {
+      // Try without 'dist' prefix (if build output is at root of package)
+      const alt1 = path.join(appPath, 'renderer', 'index.html');
+      const alt2 = path.join(appPath, '..', 'renderer', 'index.html');
+      if (require('fs').existsSync(alt1)) {
+        rendererPath = alt1;
+      } else if (require('fs').existsSync(alt2)) {
+        rendererPath = alt2;
+      }
+    }
+    
+    log.info('App path:', appPath);
     log.info('Loading renderer from:', rendererPath);
     log.info('File exists:', require('fs').existsSync(rendererPath));
     
     await mainWindow.loadFile(rendererPath);
 
     // Handle refresh/navigation — always serve index.html for SPA routing
-    mainWindow.webContents.on('did-fail-load', () => {
-      mainWindow?.loadFile(rendererPath);
+    mainWindow.webContents.on('did-fail-load', (_event, _code, _desc, _url, isMainFrame) => {
+      if (isMainFrame) {
+        log.info('did-fail-load: reloading index.html');
+        mainWindow?.loadFile(rendererPath);
+      }
     });
 
     // Block DevTools shortcuts in production

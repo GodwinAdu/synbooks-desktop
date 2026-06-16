@@ -64,6 +64,8 @@ jobs:
             artifacts/**/*.zip
             artifacts/**/*.deb
             artifacts/**/*.exe
+            artifacts/**/*.nupkg
+            artifacts/**/*.dmg
           draft: false
           generate_release_notes: true
         env:
