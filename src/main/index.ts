@@ -66,11 +66,16 @@ async function createWindow() {
     await mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    // In production, find the renderer relative to the app root
+    const rendererPath = path.join(app.getAppPath(), 'dist', 'renderer', 'index.html');
+    log.info('Loading renderer from:', rendererPath);
+    log.info('File exists:', require('fs').existsSync(rendererPath));
+    
+    await mainWindow.loadFile(rendererPath);
 
     // Handle refresh/navigation — always serve index.html for SPA routing
     mainWindow.webContents.on('did-fail-load', () => {
-      mainWindow?.loadFile(path.join(__dirname, '../renderer/index.html'));
+      mainWindow?.loadFile(rendererPath);
     });
 
     // Block DevTools shortcuts in production
