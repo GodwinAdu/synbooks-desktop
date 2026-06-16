@@ -50,7 +50,7 @@ async function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
-      devTools: isDev, // Disable DevTools in production
+      devTools: true, // Always allow DevTools for debugging
     },
     show: false,
     titleBarStyle: 'default',
@@ -67,40 +67,48 @@ async function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // In production, find the renderer relative to the app root
-    // app.getAppPath() points to the asar or the app folder
     const appPath = app.getAppPath();
     let rendererPath = path.join(appPath, 'dist', 'renderer', 'index.html');
     
+    log.info('App path:', appPath);
+    log.info('Renderer path attempt:', rendererPath);
+    log.info('Renderer exists:', require('fs').existsSync(rendererPath));
+
     // Fallback: check if file exists, if not try alternative paths
     if (!require('fs').existsSync(rendererPath)) {
-      // Try without 'dist' prefix (if build output is at root of package)
       const alt1 = path.join(appPath, 'renderer', 'index.html');
-      const alt2 = path.join(appPath, '..', 'renderer', 'index.html');
+      const alt2 = path.join(path.dirname(appPath), 'renderer', 'index.html');
+      log.info('Trying alt1:', alt1, require('fs').existsSync(alt1));
+      log.info('Trying alt2:', alt2, require('fs').existsSync(alt2));
+      
       if (require('fs').existsSync(alt1)) {
         rendererPath = alt1;
       } else if (require('fs').existsSync(alt2)) {
         rendererPath = alt2;
+      } else {
+        // Last resort: show error page with debug info
+        log.error('CRITICAL: Cannot find renderer index.html!');
+        log.error('Searched paths:', [rendererPath, alt1, alt2]);
+        await showErrorPage(`Cannot find the application UI files.\n\nSearched:\n${rendererPath}\n${alt1}\n${alt2}\n\nApp path: ${appPath}\nUser data: ${app.getPath('userData')}`);
+        return;
       }
     }
     
-    log.info('App path:', appPath);
     log.info('Loading renderer from:', rendererPath);
-    log.info('File exists:', require('fs').existsSync(rendererPath));
     
-    await mainWindow.loadFile(rendererPath);
+    try {
+      await mainWindow.loadFile(rendererPath);
+    } catch (loadErr: any) {
+      log.error('Failed to load renderer:', loadErr);
+      await showErrorPage(`Failed to load UI: ${loadErr.message}\n\nPath: ${rendererPath}`);
+      return;
+    }
 
     // Handle refresh/navigation — always serve index.html for SPA routing
     mainWindow.webContents.on('did-fail-load', (_event, _code, _desc, _url, isMainFrame) => {
       if (isMainFrame) {
         log.info('did-fail-load: reloading index.html');
         mainWindow?.loadFile(rendererPath);
-      }
-    });
-
-    // Block DevTools shortcuts in production
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      if (input.key === 'F12' || (input.control && input.shift && input.key === 'I')) {
-        event.preventDefault();
       }
     });
   }
@@ -125,6 +133,32 @@ async function createWindow() {
       }
     });
   }
+}
+
+/** Show an error page when the app can't start properly */
+async function showErrorPage(message: string) {
+  if (!mainWindow) return;
+  const html = `
+    <html>
+      <head><title>SyncBooks Desktop - Error</title></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 40px; background: #1a1a2e; color: #eee;">
+        <h1 style="color: #f97316;">⚠️ SyncBooks Desktop Failed to Start</h1>
+        <p>The application encountered an error during startup:</p>
+        <pre style="background: #0f0f23; padding: 16px; border-radius: 8px; overflow: auto; font-size: 13px; line-height: 1.5; white-space: pre-wrap;">${message.replace(/</g, '&lt;')}</pre>
+        <p style="margin-top: 24px; color: #888;">
+          <strong>What to try:</strong><br>
+          1. Close and reopen the app<br>
+          2. Check if another instance is running (port 45678)<br>
+          3. Check logs at: ${app.getPath('userData')}/logs/<br>
+          4. Delete database and restart: ${path.join(app.getPath('userData'), 'syncbooks.db')}<br>
+          5. Report this issue on GitHub
+        </p>
+        <p style="margin-top: 16px; color: #666; font-size: 12px;">Version: ${app.getVersion()} | Platform: ${process.platform} | Arch: ${process.arch}</p>
+      </body>
+    </html>
+  `;
+  await mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  mainWindow.show();
 }
 
 function createTray() {
@@ -214,11 +248,14 @@ function setupIPC() {
 async function bootstrap() {
   try {
     log.info('Starting SyncBooks Desktop...');
+    log.info('App path:', app.getAppPath());
+    log.info('User data:', app.getPath('userData'));
+    log.info('Platform:', process.platform, process.arch);
 
     // 1. Initialize the local SQLite database
     const dbPath = path.join(app.getPath('userData'), 'syncbooks.db');
     await initializeDatabase(dbPath);
-    log.info('Database initialized');
+    log.info('Database initialized at:', dbPath);
 
     // 2. Start the embedded Express API server
     await startLocalServer(LOCAL_SERVER_PORT);
@@ -242,9 +279,18 @@ async function bootstrap() {
     setupIPC();
 
     log.info('SyncBooks Desktop started successfully');
-  } catch (error) {
+  } catch (error: any) {
     log.error('Failed to start app:', error);
-    app.quit();
+    // Don't just quit — show error to user
+    try {
+      if (!mainWindow) {
+        mainWindow = new BrowserWindow({ width: 800, height: 600, show: true });
+      }
+      await showErrorPage(`Startup failed: ${error.message}\n\nStack: ${error.stack || 'No stack trace'}`);
+    } catch {
+      // If even that fails, just quit
+      app.quit();
+    }
   }
 }
 
