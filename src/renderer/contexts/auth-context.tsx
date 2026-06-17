@@ -60,6 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api.setToken(result.token);
     setUser(result.user);
     setOrganization(result.organization);
+    // Notify license context to re-fetch (StorageEvent doesn't fire in same tab)
+    window.dispatchEvent(new Event('auth-changed'));
   }, []);
 
   const register = useCallback(async (data: { fullName: string; email: string; password: string; organizationName: string }) => {
@@ -67,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api.setToken(result.token);
     setUser(result.user);
     setOrganization(result.organization);
+    window.dispatchEvent(new Event('auth-changed'));
   }, []);
 
   const logout = useCallback(() => {

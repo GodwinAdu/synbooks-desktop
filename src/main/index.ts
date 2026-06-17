@@ -45,6 +45,7 @@ async function createWindow() {
     minWidth: 1024,
     minHeight: 768,
     title: 'SyncBooks Desktop',
+    icon: path.join(app.getAppPath(), 'assets', 'icon.png'),
     webPreferences: {
       preload: preloadPath,
       nodeIntegration: false,

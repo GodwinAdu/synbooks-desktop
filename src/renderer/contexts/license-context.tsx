@@ -81,8 +81,13 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "auth-token") fetchStatus();
     };
+    const handleAuthChanged = () => fetchStatus();
     window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    window.addEventListener("auth-changed", handleAuthChanged);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("auth-changed", handleAuthChanged);
+    };
   }, [fetchStatus]);
 
   const canAccess = useCallback((moduleId: string): boolean => {

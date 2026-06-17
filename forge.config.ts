@@ -8,6 +8,7 @@ const config: ForgeConfig = {
     name: 'SyncBooks Desktop',
     executableName: 'syncbooks-desktop',
     asar: true,
+    icon: './assets/icon',
     appBundleId: 'com.syncbooks.desktop',
     appCategoryType: 'public.app-category.finance',
     appCopyright: `Copyright © ${new Date().getFullYear()} SyncBooks`,
@@ -18,6 +19,7 @@ const config: ForgeConfig = {
     new MakerSquirrel({
       name: 'SyncBooksDesktop',
       setupExe: 'SyncBooks-Desktop-Setup.exe',
+      setupIcon: './assets/icon.ico',
       noMsi: true,
     }),
     // All platforms: ZIP (fallback / portable)
