@@ -66,49 +66,17 @@ async function createWindow() {
     await mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, find the renderer relative to the app root
-    const appPath = app.getAppPath();
-    let rendererPath = path.join(appPath, 'dist', 'renderer', 'index.html');
+    // In production, load from the local Express server (avoids file:// ES module issues)
+    const serverUrl = `http://127.0.0.1:${LOCAL_SERVER_PORT}`;
+    log.info('Loading renderer from server:', serverUrl);
     
-    log.info('App path:', appPath);
-    log.info('Renderer path attempt:', rendererPath);
-    log.info('Renderer exists:', require('fs').existsSync(rendererPath));
+    await mainWindow.loadURL(serverUrl);
 
-    // Fallback: check if file exists, if not try alternative paths
-    if (!require('fs').existsSync(rendererPath)) {
-      const alt1 = path.join(appPath, 'renderer', 'index.html');
-      const alt2 = path.join(path.dirname(appPath), 'renderer', 'index.html');
-      log.info('Trying alt1:', alt1, require('fs').existsSync(alt1));
-      log.info('Trying alt2:', alt2, require('fs').existsSync(alt2));
-      
-      if (require('fs').existsSync(alt1)) {
-        rendererPath = alt1;
-      } else if (require('fs').existsSync(alt2)) {
-        rendererPath = alt2;
-      } else {
-        // Last resort: show error page with debug info
-        log.error('CRITICAL: Cannot find renderer index.html!');
-        log.error('Searched paths:', [rendererPath, alt1, alt2]);
-        await showErrorPage(`Cannot find the application UI files.\n\nSearched:\n${rendererPath}\n${alt1}\n${alt2}\n\nApp path: ${appPath}\nUser data: ${app.getPath('userData')}`);
-        return;
-      }
-    }
-    
-    log.info('Loading renderer from:', rendererPath);
-    
-    try {
-      await mainWindow.loadFile(rendererPath);
-    } catch (loadErr: any) {
-      log.error('Failed to load renderer:', loadErr);
-      await showErrorPage(`Failed to load UI: ${loadErr.message}\n\nPath: ${rendererPath}`);
-      return;
-    }
-
-    // Handle refresh/navigation — always serve index.html for SPA routing
+    // Handle refresh/navigation — SPA routing handled server-side (catch-all)
     mainWindow.webContents.on('did-fail-load', (_event, _code, _desc, _url, isMainFrame) => {
       if (isMainFrame) {
-        log.info('did-fail-load: reloading index.html');
-        mainWindow?.loadFile(rendererPath);
+        log.info('did-fail-load: retrying server URL');
+        setTimeout(() => mainWindow?.loadURL(serverUrl), 1000);
       }
     });
   }

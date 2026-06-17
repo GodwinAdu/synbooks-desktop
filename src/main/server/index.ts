@@ -120,6 +120,19 @@ export async function startLocalServer(port: number): Promise<void> {
     });
   });
 
+  // In production, serve the renderer static files via Express
+  // This avoids file:// protocol issues with ES modules in Electron
+  if (process.env.NODE_ENV !== 'development') {
+    const { app: electronApp } = require('electron');
+    const rendererDir = require('path').join(electronApp.getAppPath(), 'dist', 'renderer');
+    log.info('[Server] Serving renderer from:', rendererDir);
+    app.use(express.static(rendererDir));
+    // SPA fallback: serve index.html for all non-API routes
+    app.get('*', (_req, res) => {
+      res.sendFile(require('path').join(rendererDir, 'index.html'));
+    });
+  }
+
   return new Promise((resolve, reject) => {
     server = http.createServer(app);
     server.listen(port, '127.0.0.1', () => {
