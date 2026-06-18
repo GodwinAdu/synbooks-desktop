@@ -52,6 +52,7 @@ import { ProductionPage } from "./pages/production";
 import { ProcurementPage } from "./pages/procurement";
 import { ContractsPage } from "./pages/contracts";
 import { ProfilePage } from "./pages/profile";
+import { HelpPage } from "./pages/help";
 import { UpgradeGate } from "./components/commons/upgrade-gate";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -60,11 +61,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="size-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground text-sm font-bold">S</span>
+        <div className="flex flex-col items-center gap-5">
+          {/* Animated Logo */}
+          <div className="relative">
+            <div className="size-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-pulse">
+              <span className="text-white text-2xl font-bold">S</span>
+            </div>
+            {/* Spinning ring */}
+            <div className="absolute -inset-2 rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 animate-spin" style={{ animationDuration: '3s', borderTopColor: 'transparent', borderRightColor: 'transparent' }} />
           </div>
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          {/* Brand name */}
+          <div className="text-center space-y-1">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+              SyncBooks
+            </h1>
+            <p className="text-xs text-muted-foreground">Desktop Accounting</p>
+          </div>
+          {/* Loading dots */}
+          <div className="flex items-center gap-1.5">
+            <div className="size-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="size-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="size-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
         </div>
       </div>
     );
@@ -134,6 +152,7 @@ export function App() {
         {/* Settings & Profile - always accessible */}
         <Route path="settings" element={<SettingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="help" element={<HelpPage />} />
       </Route>
 
       {/* Fallback */}

@@ -14,10 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, PackageCheck, Trash2 } from "lucide-react";
+import { Plus, Search, PackageCheck, Trash2, MoreHorizontal, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { GoodsReceived } from "../types";
 import { GRN_STATUS_COLORS } from "../types";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 
 export function GoodsReceivingTab() {
   const [grns, setGrns] = useState<GoodsReceived[]>([]);
@@ -34,6 +37,10 @@ export function GoodsReceivingTab() {
   };
 
   useEffect(() => { fetchGRNs(); }, []);
+
+  const handleAccept = async (id: string) => {
+    try { const res: any = await api.post(`/procurement/goods-received/${id}/accept`, {}); toast.success(res.message || "GRN accepted — stock updated"); fetchGRNs(); } catch (e: any) { toast.error(e.message || "Failed"); }
+  };
 
   const filtered = grns.filter((g) =>
     g.grnNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -78,6 +85,7 @@ export function GoodsReceivingTab() {
                     <th className="text-left py-3 px-4 font-semibold">Received Date</th>
                     <th className="text-right py-3 px-4 font-semibold">Items</th>
                     <th className="text-left py-3 px-4 font-semibold">Status</th>
+                    <th className="text-right py-3 px-4 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -94,6 +102,21 @@ export function GoodsReceivingTab() {
                         <Badge className={`text-xs ${GRN_STATUS_COLORS[grn.status] || ""}`}>
                           {grn.status.replace("_", " ")}
                         </Badge>
+                      </td>
+                      <td className="py-2.5 px-4 text-right">
+                        {(grn.status === "pending_inspection" || grn.status === "draft") && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem className="text-emerald-600" onClick={() => handleAccept(grn.id)}>
+                                <Check className="h-4 w-4 mr-2" /> Accept & Update Stock
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </td>
                     </tr>
                   ))}

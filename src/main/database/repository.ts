@@ -29,7 +29,7 @@ const JSON_FIELDS: Record<string, string[]> = {
   organizations: ["address", "settings", "subscriptionPlan", "modules", "notificationSettings", "security", "backupSettings", "taxSettings"],
   users: ["organizations", "permissions"],
   invoices: ["lineItems"], bills: ["lineItems"], estimates: ["lineItems"],
-  credit_notes: ["lineItems"], purchase_orders: ["lineItems"], journal_entries: ["lineItems"],
+  credit_notes: ["lineItems"], purchase_orders: ["lineItems"], sales_orders: ["lineItems"], journal_entries: ["lineItems"],
   products: ["variants", "bundleItems", "suppliers", "images", "priceTiers", "customFields"],
   employees: ["address", "allowances", "bankDetails", "taxInfo"],
   payroll_runs: ["employeePayments"],
@@ -178,7 +178,12 @@ export class Repository<T extends { id?: string }> {
   softDelete(id: string, deletedBy?: string): boolean {
     const db = getDB();
     const now = new Date().toISOString();
-    db.run(`UPDATE ${this.tableName} SET del_flag = 1, deletedBy = ?, updatedAt = ?, _dirty = 1 WHERE id = ?`, [deletedBy || null, now, id]);
+    const validCols = this.getTableColumns();
+    if (validCols.includes('deletedBy')) {
+      db.run(`UPDATE ${this.tableName} SET del_flag = 1, deletedBy = ?, updatedAt = ?, _dirty = 1 WHERE id = ?`, [deletedBy || null, now, id]);
+    } else {
+      db.run(`UPDATE ${this.tableName} SET del_flag = 1, updatedAt = ?, _dirty = 1 WHERE id = ?`, [now, id]);
+    }
     this.logSync("delete", id, { del_flag: 1 });
     saveToDisk();
     return true;

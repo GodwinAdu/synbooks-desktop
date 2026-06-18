@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Plus, Trash2, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Send, Loader2 } from "lucide-react";
 
 interface LineItem {
   description: string;
@@ -42,6 +42,7 @@ export function EstimateCreateForm({ onBack }: Props) {
       return d.toISOString().split("T")[0];
     })(),
     notes: "",
+    terms: "",
   });
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
@@ -80,16 +81,39 @@ export function EstimateCreateForm({ onBack }: Props) {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (status: "draft" | "sent" = "draft") => {
     if (lineItems.every(li => !li.description)) {
       toast.error("Please add at least one line item");
+      return;
+    }
+    if (!formData.customerId) {
+      toast.error("Please select a customer");
       return;
     }
 
     setSubmitting(true);
     try {
-      // No API endpoint yet - save locally
-      toast.success("Estimate saved locally");
+      await api.post("/estimates", {
+        customerId: formData.customerId,
+        estimateDate: formData.estimateDate,
+        expiryDate: formData.expiryDate || undefined,
+        lineItems: lineItems.filter(li => li.description).map(li => ({
+          description: li.description,
+          quantity: li.quantity,
+          rate: li.rate,
+          amount: li.quantity * li.rate,
+          taxRate: li.taxRate,
+          taxAmount: li.quantity * li.rate * li.taxRate / 100,
+          productId: li.productId,
+        })),
+        subtotal,
+        taxAmount: taxTotal,
+        totalAmount,
+        notes: formData.notes,
+        terms: formData.terms,
+        status,
+      });
+      toast.success(status === "sent" ? "Estimate created and sent" : "Estimate saved as draft");
       onBack();
     } catch (err: any) {
       toast.error(err.message || "Failed to save estimate");
@@ -240,10 +264,19 @@ export function EstimateCreateForm({ onBack }: Props) {
                   <Button
                     className="w-full bg-emerald-600 hover:bg-emerald-700"
                     disabled={submitting}
-                    onClick={handleSubmit}
+                    onClick={() => handleSubmit("sent")}
                   >
-                    {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                    Save Estimate
+                    {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                    Save & Send
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={submitting}
+                    onClick={() => handleSubmit("draft")}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Save as Draft
                   </Button>
                   <Button variant="outline" className="w-full" onClick={onBack} disabled={submitting}>
                     Cancel

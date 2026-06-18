@@ -3,7 +3,7 @@
  * Search, status filter, and create button.
  */
 
-import { Search, Plus, Download } from "lucide-react";
+import { Search, Plus, Download, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -11,9 +11,10 @@ interface Props {
   filters: { status: string; search: string };
   onFilterChange: (filters: { status: string; search: string }) => void;
   onCreateClick: () => void;
+  onCheckOverdue?: () => void;
 }
 
-export function InvoiceFilters({ filters, onFilterChange, onCreateClick }: Props) {
+export function InvoiceFilters({ filters, onFilterChange, onCreateClick, onCheckOverdue }: Props) {
   return (
     <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
       <div className="flex gap-3 flex-1 w-full sm:w-auto">
@@ -45,12 +46,14 @@ export function InvoiceFilters({ filters, onFilterChange, onCreateClick }: Props
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button variant="outline" size="sm">
-          <Download className="size-4" />
-          Export
-        </Button>
-        <Button size="sm" onClick={onCreateClick}>
-          <Plus className="size-4" />
+        {onCheckOverdue && (
+          <Button variant="outline" size="sm" onClick={onCheckOverdue}>
+            <AlertTriangle className="size-4 mr-1" />
+            Check Overdue
+          </Button>
+        )}
+        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onCreateClick}>
+          <Plus className="size-4 mr-1" />
           New Invoice
         </Button>
       </div>

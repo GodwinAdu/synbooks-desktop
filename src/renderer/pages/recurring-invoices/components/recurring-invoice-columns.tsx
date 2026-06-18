@@ -9,9 +9,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pause, Play, Trash2 } from "lucide-react";
+import { MoreHorizontal, Eye, Pause, Play, Trash2, Zap } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { toast } from "sonner";
 import type { RecurringInvoice } from "../types";
 
 const frequencyConfig: Record<string, { label: string; className: string }> = {
@@ -25,6 +24,7 @@ const frequencyConfig: Record<string, { label: string; className: string }> = {
 export function getRecurringInvoiceColumns(actions: {
   onView?: (template: RecurringInvoice) => void;
   onToggle?: (template: RecurringInvoice) => void;
+  onGenerateNow?: (template: RecurringInvoice) => void;
   onDelete?: (template: RecurringInvoice) => void;
 }): ColumnDef<RecurringInvoice>[] {
   return [
@@ -64,29 +64,14 @@ export function getRecurringInvoiceColumns(actions: {
       ),
     },
     {
-      accessorKey: "invoicesGenerated",
-      header: () => <div className="text-center">Generated</div>,
-      cell: ({ row }) => (
-        <div className="text-center text-muted-foreground">{row.getValue("invoicesGenerated")}</div>
-      ),
-    },
-    {
       accessorKey: "isActive",
-      header: "Active",
+      header: "Status",
       cell: ({ row }) => {
-        const isActive = row.getValue("isActive") as boolean;
+        const isActive = row.getValue("isActive");
         return (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={isActive ? "text-emerald-600" : "text-muted-foreground"}
-            onClick={() => {
-              toast.info(`Template ${isActive ? "paused" : "resumed"}`);
-              actions.onToggle?.(row.original);
-            }}
-          >
+          <Badge variant="outline" className={isActive ? "border-emerald-500 text-emerald-600" : "border-gray-300 text-gray-500"}>
             {isActive ? "Active" : "Paused"}
-          </Button>
+          </Badge>
         );
       },
     },
@@ -101,10 +86,13 @@ export function getRecurringInvoiceColumns(actions: {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => actions.onView?.(template)}>
                 <Eye className="h-4 w-4 mr-2" />View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => actions.onGenerateNow?.(template)}>
+                <Zap className="h-4 w-4 mr-2" />Generate Invoice Now
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => actions.onToggle?.(template)}>
                 {template.isActive ? (

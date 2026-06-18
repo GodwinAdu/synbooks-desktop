@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReportHeader } from "./report-header";
+import { AccountDrillDownModal } from "./account-drilldown-modal";
 import { formatCurrency } from "@/lib/utils";
 import type { ProfitLossData, AccountGroup } from "../types";
 
@@ -74,6 +75,9 @@ export function ProfitLossReport() {
     ? `${new Date(data.startDate).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })} – ${new Date(data.endDate).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })}`
     : "";
 
+  // Drill-down state
+  const [drillAccount, setDrillAccount] = useState<{ id: string; name: string } | null>(null);
+
   return (
     <div className="p-6 space-y-6">
       <ReportHeader
@@ -120,7 +124,7 @@ export function ProfitLossReport() {
               ) : (
                 <>
                   {data.revenueGroups.map((group, i) => (
-                    <GroupSection key={i} group={group} color="emerald" />
+                    <GroupSection key={i} group={group} color="emerald" onAccountClick={(id, name) => setDrillAccount({ id, name })} />
                   ))}
                   <Separator className="my-2" />
                   <div className="grid grid-cols-[1fr_auto] gap-4 py-2 font-bold text-lg">
@@ -143,7 +147,7 @@ export function ProfitLossReport() {
               ) : (
                 <>
                   {data.expenseGroups.map((group, i) => (
-                    <GroupSection key={i} group={group} color="red" />
+                    <GroupSection key={i} group={group} color="red" onAccountClick={(id, name) => setDrillAccount({ id, name })} />
                   ))}
                   <Separator className="my-2" />
                   <div className="grid grid-cols-[1fr_auto] gap-4 py-2 font-bold text-lg">
@@ -171,6 +175,18 @@ export function ProfitLossReport() {
           </Card>
         </>
       ) : null}
+
+      {/* Account Drill-Down Modal */}
+      {drillAccount && (
+        <AccountDrillDownModal
+          open={!!drillAccount}
+          onClose={() => setDrillAccount(null)}
+          accountId={drillAccount.id}
+          accountName={drillAccount.name}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      )}
     </div>
   );
 }
@@ -184,15 +200,19 @@ function RatioCard({ label, value, color }: { label: string; value: string; colo
   );
 }
 
-function GroupSection({ group, color }: { group: AccountGroup; color: "emerald" | "red" }) {
+function GroupSection({ group, color, onAccountClick }: { group: AccountGroup; color: "emerald" | "red"; onAccountClick?: (id: string, name: string) => void }) {
   return (
     <div className="mb-5">
       <p className={`text-xs font-semibold uppercase tracking-wider ${color === "emerald" ? "text-emerald-600" : "text-red-500"} mb-1`}>
         {group.subType}
       </p>
       {group.accounts.map((acc) => (
-        <div key={acc.id} className="grid grid-cols-[1fr_auto] gap-4 py-1.5 pl-4 text-sm hover:bg-muted/50 rounded transition-colors">
-          <span className="text-muted-foreground">{acc.name}</span>
+        <div
+          key={acc.id}
+          className="grid grid-cols-[1fr_auto] gap-4 py-1.5 pl-4 text-sm hover:bg-muted/50 rounded transition-colors cursor-pointer"
+          onClick={() => onAccountClick?.(acc.id, acc.name)}
+        >
+          <span className="text-muted-foreground hover:text-foreground hover:underline">{acc.name}</span>
           <span className="tabular-nums text-right">{formatCurrency(acc.amount)}</span>
         </div>
       ))}

@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { Repository } from '../../database/repository';
 import { AuthenticatedRequest } from '../middleware/local-auth';
 import { checkPlanLimit } from '../middleware/plan-limits';
+import { dbGet } from '../../database';
 
 export const productsRouter = Router();
 const repo = new Repository<any>('products');
@@ -24,7 +25,14 @@ productsRouter.get('/:id', (req: AuthenticatedRequest, res: Response) => {
 
 productsRouter.post('/', checkPlanLimit('products'), (req: AuthenticatedRequest, res: Response) => {
   try {
-    const item = repo.create({ ...req.body, organizationId: req.organizationId, createdBy: req.userId });
+    // Auto-generate SKU if not provided
+    let { sku, ...rest } = req.body;
+    if (!sku) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      sku = 'PRD-';
+      for (let i = 0; i < 6; i++) sku += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const item = repo.create({ ...rest, sku, organizationId: req.organizationId, createdBy: req.userId });
     res.status(201).json({ success: true, data: item });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -42,12 +50,34 @@ productsRouter.delete('/:id', (req: AuthenticatedRequest, res: Response) => {
   res.json({ success: true, message: 'Product deleted' });
 });
 
-// Stock adjustment
+// Stock adjustment (also records in stock_adjustments table)
 productsRouter.post('/:id/adjust-stock', (req: AuthenticatedRequest, res: Response) => {
   const existing = repo.findById(req.params.id);
   if (!existing || existing.organizationId !== req.organizationId) { res.status(404).json({ error: 'Product not found' }); return; }
   const { adjustment, reason } = req.body;
-  const newStock = (existing.currentStock || 0) + adjustment;
-  repo.update(req.params.id, { currentStock: Math.max(0, newStock), modifiedBy: req.userId });
-  res.json({ success: true, newStock: Math.max(0, newStock) });
+  const previousStock = existing.currentStock || 0;
+  const newStock = Math.max(0, previousStock + adjustment);
+  repo.update(req.params.id, { currentStock: newStock, modifiedBy: req.userId });
+
+  // Record in stock_adjustments table
+  try {
+    const adjRepo = new Repository<any>('stock_adjustments');
+    const user = dbGet(`SELECT firstName, lastName FROM users WHERE id = ?`, [req.userId]);
+    const createdByName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Unknown';
+    adjRepo.create({
+      organizationId: req.organizationId,
+      productId: req.params.id,
+      productName: existing.name || '',
+      productSku: existing.sku || '',
+      type: adjustment >= 0 ? 'increase' : 'decrease',
+      quantity: Math.abs(adjustment),
+      previousStock,
+      newStock,
+      reason: reason || 'Manual adjustment',
+      createdBy: req.userId,
+      createdByName,
+    });
+  } catch (e) { /* non-critical - stock was already adjusted */ }
+
+  res.json({ success: true, newStock });
 });

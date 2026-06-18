@@ -3,15 +3,18 @@ import { ShoppingBag } from "lucide-react";
 import { getSalesOrderColumns } from "./sales-order-columns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { api } from "@/lib/api-client";
+import { formatCurrency } from "@/lib/utils";
 import type { SalesOrder } from "../types";
 
 interface Props {
   orders: SalesOrder[];
   loading: boolean;
   onRefresh: () => void;
+  onView?: (order: SalesOrder) => void;
 }
 
-export function SalesOrderTable({ orders, loading, onRefresh }: Props) {
+export function SalesOrderTable({ orders, loading, onRefresh, onView }: Props) {
   if (loading) {
     return (
       <div className="space-y-3">
@@ -23,15 +26,36 @@ export function SalesOrderTable({ orders, loading, onRefresh }: Props) {
   }
 
   const columns = getSalesOrderColumns({
-    onView: (order) => toast.info(`Viewing order ${order.orderNumber}`),
-    onConfirm: (order) => {
-      toast.success(`Order ${order.orderNumber} confirmed`);
-      onRefresh();
+    onView: (order) => onView?.(order),
+    onConfirm: async (order) => {
+      if (!confirm(`Confirm order ${order.orderNumber}?`)) return;
+      try {
+        await api.post(`/sales-orders/${order.id}/confirm`, {});
+        toast.success(`Order ${order.orderNumber} confirmed`);
+        onRefresh();
+      } catch (e: any) {
+        toast.error(e.message || "Failed to confirm order");
+      }
     },
-    onConvert: (order) => toast.info(`Converting order ${order.orderNumber} to invoice`),
-    onCancel: (order) => {
-      toast.success(`Order ${order.orderNumber} cancelled`);
-      onRefresh();
+    onConvert: async (order) => {
+      if (!confirm(`Convert order ${order.orderNumber} to an invoice? This will create a draft invoice with the same line items.`)) return;
+      try {
+        const result = await api.post(`/sales-orders/${order.id}/convert`, {});
+        toast.success(result.message || `Order converted to invoice`);
+        onRefresh();
+      } catch (e: any) {
+        toast.error(e.message || "Failed to convert order");
+      }
+    },
+    onCancel: async (order) => {
+      if (!confirm(`Cancel order ${order.orderNumber}? This cannot be undone.`)) return;
+      try {
+        await api.post(`/sales-orders/${order.id}/cancel`, {});
+        toast.success(`Order ${order.orderNumber} cancelled`);
+        onRefresh();
+      } catch (e: any) {
+        toast.error(e.message || "Failed to cancel order");
+      }
     },
   });
 

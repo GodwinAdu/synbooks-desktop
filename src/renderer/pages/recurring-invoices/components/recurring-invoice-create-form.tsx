@@ -100,8 +100,30 @@ export function RecurringInvoiceCreateForm({ onBack }: Props) {
 
     setSubmitting(true);
     try {
-      // No API endpoint yet - save locally
-      toast.success("Recurring invoice template saved");
+      const customer = customers.find(c => c.id === formData.customerId);
+      await api.post("/recurring-invoices", {
+        profileName: formData.templateName,
+        customerId: formData.customerId,
+        customerName: customer?.name || "",
+        frequency: formData.frequency,
+        startDate: formData.startDate,
+        endDate: formData.endDate || undefined,
+        nextRunDate: formData.startDate,
+        lineItems: lineItems.filter(li => li.description).map(li => ({
+          description: li.description,
+          quantity: li.quantity,
+          rate: li.rate,
+          amount: li.quantity * li.rate,
+          taxRate: li.taxRate,
+          taxAmount: li.quantity * li.rate * li.taxRate / 100,
+          productId: li.productId,
+        })),
+        subtotal,
+        taxAmount: taxTotal,
+        totalAmount,
+        isActive: 1,
+      });
+      toast.success("Recurring invoice template created");
       onBack();
     } catch (err: any) {
       toast.error(err.message || "Failed to save template");

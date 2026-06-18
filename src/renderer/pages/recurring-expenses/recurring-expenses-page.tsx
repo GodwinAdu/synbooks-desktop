@@ -1,26 +1,78 @@
-import { useState } from "react";
+/**
+ * Recurring Expenses Page - Main container
+ * Automate repetitive expense generation.
+ */
+
+import { useEffect, useState, useCallback } from "react";
+import { api } from "@/lib/api-client";
 import { Heading } from "@/components/commons/heading";
 import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Repeat, Calendar, DollarSign, Info } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
-import { toast } from "sonner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Plus, Repeat, CheckCircle, CalendarClock, Info } from "lucide-react";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { RecurringExpenseTable } from "./components/recurring-expense-table";
+import { RecurringExpenseCreateForm } from "./components/recurring-expense-create-form";
+import { RecurringExpenseDetail } from "./components/recurring-expense-detail";
+import type { RecurringExpense } from "./types";
 
 export function RecurringExpensesPage() {
-  const [_expenses] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<RecurringExpense[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"list" | "create" | "detail">("list");
+  const [selectedExpense, setSelectedExpense] = useState<RecurringExpense | null>(null);
 
-  // Summary data (empty state for now)
-  const totalRecurring = 0;
-  const activeCount = 0;
-  const nextDue = "—";
+  const loadExpenses = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await api.get("/recurring-expenses", { pageSize: 100 }).catch(() => ({ data: [] }));
+      setExpenses(result.data || []);
+    } catch {
+      setExpenses([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadExpenses(); }, [loadExpenses]);
+
+  if (view === "create") {
+    return <RecurringExpenseCreateForm onBack={() => { setView("list"); loadExpenses(); }} />;
+  }
+
+  if (view === "detail" && selectedExpense) {
+    return (
+      <RecurringExpenseDetail
+        expense={selectedExpense}
+        onBack={() => { setView("list"); loadExpenses(); }}
+      />
+    );
+  }
+
+  const totalExpenses = expenses.length;
+  const active = expenses.filter(e => e.isActive).length;
+  const totalMonthly = expenses
+    .filter(e => e.isActive)
+    .reduce((sum, e) => {
+      const amount = e.amount || 0;
+      switch (e.frequency) {
+        case "daily": return sum + amount * 30;
+        case "weekly": return sum + amount * 4.33;
+        case "monthly": return sum + amount;
+        case "quarterly": return sum + amount / 3;
+        case "yearly": return sum + amount / 12;
+        default: return sum + amount;
+      }
+    }, 0);
+  const nextDue = expenses
+    .filter(e => e.isActive && e.nextExpenseDate)
+    .sort((a, b) => new Date(a.nextExpenseDate).getTime() - new Date(b.nextExpenseDate).getTime())[0];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <Heading title="Recurring Expenses" description="Manage auto-generated recurring expenses" />
-        <Button onClick={() => toast.info("Coming soon")}>
+        <Heading title="Recurring Expenses" description="Automate repetitive expense generation" />
+        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setView("create")}>
           <Plus className="h-4 w-4 mr-2" />
           New Recurring Expense
         </Button>
@@ -28,61 +80,64 @@ export function RecurringExpensesPage() {
       <Separator />
 
       {/* Info Alert */}
-      <Alert className="border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20">
-        <Info className="h-4 w-4 text-emerald-600" />
-        <AlertDescription className="text-emerald-700 dark:text-emerald-300">
-          Recurring expenses are auto-created at the scheduled frequency. Set up a recurring expense and it will be automatically recorded on the specified dates.
-        </AlertDescription>
-      </Alert>
+      <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
+        <Info className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+        <p className="text-sm text-emerald-800 dark:text-emerald-300">
+          Recurring expenses are automatically created at the scheduled frequency.
+          Set up regular payments like rent, utilities, or subscriptions and they'll be recorded automatically.
+        </p>
+      </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Monthly</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Templates</CardTitle>
+            <Repeat className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalRecurring)}</div>
-            <p className="text-xs text-muted-foreground">Estimated monthly outflow</p>
+            <div className="text-2xl font-bold">{totalExpenses}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active</CardTitle>
-            <Repeat className="h-4 w-4 text-muted-foreground" />
+            <CheckCircle className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeCount}</div>
-            <p className="text-xs text-muted-foreground">Active recurring expenses</p>
+            <div className="text-2xl font-bold text-emerald-600">{active}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Est. Monthly</CardTitle>
+            <span className="text-muted-foreground text-xs font-normal">$</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalMonthly)}</div>
+            <p className="text-xs text-muted-foreground">Estimated monthly outflow</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Next Due</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CalendarClock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{nextDue}</div>
-            <p className="text-xs text-muted-foreground">Next expense generation date</p>
+            <div className="text-2xl font-bold">
+              {nextDue ? formatDate(nextDue.nextExpenseDate) : "—"}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Empty State */}
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Repeat className="h-12 w-12 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-medium">No recurring expenses yet</h3>
-          <p className="text-sm text-muted-foreground mt-1 max-w-md">
-            Set up recurring expenses for regular payments like rent, utilities, or subscriptions. They'll be automatically created on schedule.
-          </p>
-          <Button className="mt-4" variant="outline" onClick={() => toast.info("Coming soon")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create First Recurring Expense
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Table */}
+      <RecurringExpenseTable
+        expenses={expenses}
+        loading={loading}
+        onRefresh={loadExpenses}
+        onView={(e) => { setSelectedExpense(e); setView("detail"); }}
+      />
     </div>
   );
 }

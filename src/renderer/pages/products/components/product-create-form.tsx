@@ -104,22 +104,26 @@ export function ProductCreateForm({ initialData, onBack }: Props) {
   const [activeTab, setActiveTab] = useState("details");
 
   // --- Lookups ---
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [productsList, setProductsList] = useState<any[]>([]);
 
   useEffect(() => {
-    api.get("/accounts/categories").then((r: any) => setCategories(r.data || r || [])).catch(() => {});
-    api.get("/accounts", { pageSize: 200 }).then((r: any) => setAccounts(r.data || r || [])).catch(() => {});
-    api.get("/vendors", { pageSize: 200 }).then((r: any) => setVendors(r.data || r || [])).catch(() => {});
-    api.get("/products", { pageSize: 200 }).then((r: any) => setProductsList(r.data || r || [])).catch(() => {});
+    // Load product categories from database
+    api.get("/categories/product").then((res: any) => {
+      const cats = Array.isArray(res) ? res : res.data || [];
+      setCategories(cats.map((c: any) => c.name));
+    }).catch(() => {});
+    api.get("/accounts", { pageSize: 200 }).then((r: any) => setAccounts(Array.isArray(r) ? r : r.data || [])).catch(() => {});
+    api.get("/vendors", { pageSize: 200 }).then((r: any) => setVendors(r.data || [])).catch(() => {});
+    api.get("/products", { pageSize: 200 }).then((r: any) => setProductsList(r.data || [])).catch(() => {});
   }, []);
 
   // Filter accounts by type
-  const revenueAccounts = useMemo(() => accounts.filter((a: any) => a.type === "revenue" || a.category === "revenue"), [accounts]);
-  const expenseAccounts = useMemo(() => accounts.filter((a: any) => a.type === "expense" || a.category === "expense"), [accounts]);
-  const assetAccounts = useMemo(() => accounts.filter((a: any) => a.type === "asset" || a.category === "asset"), [accounts]);
+  const revenueAccounts = useMemo(() => accounts.filter((a: any) => a.accountType === "revenue"), [accounts]);
+  const expenseAccounts = useMemo(() => accounts.filter((a: any) => a.accountType === "expense"), [accounts]);
+  const assetAccounts = useMemo(() => accounts.filter((a: any) => a.accountType === "asset"), [accounts]);
 
   // --- Form State ---
   const [formData, setFormData] = useState({
@@ -377,9 +381,9 @@ export function ProductCreateForm({ initialData, onBack }: Props) {
                       className={selectClass}
                     >
                       <option value="">Select category</option>
-                      {categories.map((cat: any) => (
-                        <option key={cat.id || cat._id || cat.name} value={cat.id || cat._id || cat.name}>
-                          {cat.name}
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
                         </option>
                       ))}
                     </select>

@@ -62,3 +62,154 @@ settingsRouter.put('/modules', (req: AuthenticatedRequest, res: Response) => {
   orgRepo.update(req.organizationId!, { modules: req.body });
   res.json({ success: true });
 });
+
+// ─── Database Management Endpoints ──────────────────────────────────────────
+
+import { getDB, saveToDisk } from '../../database';
+import { app } from 'electron';
+import path from 'path';
+import fs from 'fs';
+
+settingsRouter.get('/database-stats', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const db = getDB();
+    const dbPath = path.join(app.getPath('userData'), 'syncbooks.db');
+    
+    // Get file size
+    let totalSize = '—';
+    let lastModified = '';
+    try {
+      const stat = fs.statSync(dbPath);
+      totalSize = stat.size < 1024 * 1024
+        ? `${(stat.size / 1024).toFixed(1)} KB`
+        : `${(stat.size / 1024 / 1024).toFixed(1)} MB`;
+      lastModified = stat.mtime.toISOString();
+    } catch {}
+
+    // Count records per table
+    const tables: Record<string, number> = {};
+    const tableNames = [
+      'organizations', 'users', 'accounts', 'customers', 'vendors', 'products',
+      'invoices', 'expenses', 'bills', 'employees', 'payroll_runs', 'bank_accounts',
+      'bank_transactions', 'journal_entries', 'general_ledger', 'projects', 'budgets',
+      'fixed_assets', 'crm_contacts', 'crm_deals', 'pos_sales', 'payments',
+      'contracts', 'estimates', 'credit_notes', 'purchase_orders', 'work_orders',
+      'recurring_invoices', 'recurring_expenses',
+    ];
+    
+    for (const table of tableNames) {
+      try {
+        const stmt = db.prepare(`SELECT COUNT(*) as count FROM ${table} WHERE del_flag = 0`);
+        stmt.step();
+        tables[table] = (stmt.getAsObject() as any).count || 0;
+        stmt.free();
+      } catch {
+        // Table might not exist
+      }
+    }
+
+    res.json({ totalSize, tables, path: dbPath, lastModified });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+settingsRouter.get('/export-data', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const orgId = req.organizationId!;
+    const tables = [
+      'accounts', 'customers', 'vendors', 'products', 'invoices', 'expenses',
+      'bills', 'employees', 'payroll_runs', 'bank_accounts', 'bank_transactions',
+      'journal_entries', 'general_ledger', 'projects', 'budgets', 'fixed_assets',
+      'crm_contacts', 'crm_deals', 'pos_sales', 'payments', 'contracts',
+      'estimates', 'credit_notes', 'purchase_orders', 'work_orders',
+    ];
+
+    const exportData: Record<string, any[]> = {};
+    for (const table of tables) {
+      try {
+        const repo = new Repository<any>(table);
+        exportData[table] = repo.find({ where: { organizationId: orgId, del_flag: 0 } });
+      } catch {}
+    }
+
+    // Also export organization settings
+    const org = orgRepo.findById(orgId);
+    exportData._organization = org ? [org] : [];
+    exportData._exportedAt = [{ timestamp: new Date().toISOString(), version: app.getVersion() }];
+
+    res.json(exportData);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+settingsRouter.post('/clear-transactions', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const db = getDB();
+    const orgId = req.organizationId!;
+
+    // Tables that hold transaction data (not master data)
+    const transactionTables = [
+      'invoices', 'expenses', 'bills', 'journal_entries', 'general_ledger',
+      'payments', 'payroll_runs', 'pos_sales', 'bank_transactions',
+      'recurring_invoices', 'recurring_expenses', 'recurring_journals',
+      'estimates', 'credit_notes', 'purchase_orders', 'work_orders',
+      'goods_received', 'requisitions', 'time_entries', 'leave_requests',
+      'project_tasks', '_sync_log',
+    ];
+
+    for (const table of transactionTables) {
+      try {
+        db.run(`DELETE FROM ${table} WHERE organizationId = ?`, [orgId]);
+      } catch {}
+    }
+
+    // Reset account balances
+    db.run(`UPDATE accounts SET currentBalance = 0, debitBalance = 0, creditBalance = 0 WHERE organizationId = ?`, [orgId]);
+
+    saveToDisk();
+    res.json({ success: true, message: 'All transaction data cleared' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+settingsRouter.post('/factory-reset', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const db = getDB();
+
+    // Delete ALL data from all tables
+    const allTables = [
+      'organizations', 'users', 'accounts', 'customers', 'vendors', 'products',
+      'invoices', 'expenses', 'bills', 'employees', 'payroll_runs', 'bank_accounts',
+      'bank_transactions', 'journal_entries', 'general_ledger', 'projects', 'budgets',
+      'fixed_assets', 'crm_contacts', 'crm_deals', 'pos_sales', 'payments',
+      'contracts', 'estimates', 'credit_notes', 'purchase_orders', 'work_orders',
+      'bill_of_materials', 'work_centers', 'goods_received', 'requisitions',
+      'recurring_invoices', 'recurring_expenses', 'recurring_journals',
+      'deductions', 'leave_requests', 'time_entries', 'bank_rules',
+      'roles', 'project_tasks', '_sync_log', '_sync_state',
+    ];
+
+    for (const table of allTables) {
+      try { db.run(`DELETE FROM ${table}`); } catch {}
+    }
+
+    saveToDisk();
+
+    // Clear auth token
+    res.json({ success: true, message: 'Factory reset complete' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Print Preview ──────────────────────────────────────────────────────────
+
+let tempPrintHtml = '';
+
+settingsRouter.post('/temp-print', (req: AuthenticatedRequest, res: Response) => {
+  tempPrintHtml = req.body.html || '';
+  res.json({ success: true });
+});

@@ -92,7 +92,16 @@ export function SalesOrderCreateForm({ onBack }: Props) {
 
     setSubmitting(action);
     try {
-      // No API endpoint yet - save locally
+      const payload = {
+        ...formData,
+        deliveryDate: formData.expectedDeliveryDate,
+        lineItems,
+        subtotal,
+        taxAmount: taxTotal,
+        totalAmount,
+        status: action === "confirm" ? "confirmed" : "draft",
+      };
+      await api.post("/sales-orders", payload);
       toast.success(action === "confirm" ? "Order confirmed" : "Order saved as draft");
       onBack();
     } catch (err: any) {

@@ -21,11 +21,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, FileText, CheckCircle2, AlertTriangle, DollarSign } from "lucide-react";
+import { Plus, Search, FileText, CheckCircle2, AlertTriangle, DollarSign, MoreHorizontal, Play, Pause, XCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import type { Contract } from "./types";
 import { CONTRACT_STATUS_COLORS } from "./types";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 export function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -43,6 +46,19 @@ export function ContractsPage() {
   };
 
   useEffect(() => { fetchContracts(); }, []);
+
+  const handleActivate = async (id: string) => {
+    try { await api.post(`/contracts/${id}/activate`, {}); toast.success("Contract activated"); fetchContracts(); } catch (e: any) { toast.error(e.message || "Failed"); }
+  };
+  const handlePause = async (id: string) => {
+    try { await api.post(`/contracts/${id}/pause`, {}); toast.success("Contract paused"); fetchContracts(); } catch (e: any) { toast.error(e.message || "Failed"); }
+  };
+  const handleTerminate = async (id: string) => {
+    try { await api.post(`/contracts/${id}/terminate`, {}); toast.success("Contract terminated"); fetchContracts(); } catch (e: any) { toast.error(e.message || "Failed"); }
+  };
+  const handleRenew = async (id: string) => {
+    try { const res: any = await api.post(`/contracts/${id}/renew`, {}); toast.success(res.message || "Contract renewed"); fetchContracts(); } catch (e: any) { toast.error(e.message || "Failed"); }
+  };
 
   const filtered = contracts.filter((c) => {
     const matchSearch =
@@ -140,9 +156,10 @@ export function ContractsPage() {
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="paused">Paused</SelectItem>
             <SelectItem value="expired">Expired</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
             <SelectItem value="renewed">Renewed</SelectItem>
+            <SelectItem value="terminated">Terminated</SelectItem>
           </SelectContent>
         </Select>
         <Button onClick={() => setShowCreate(true)} className="ml-auto">
@@ -176,6 +193,7 @@ export function ContractsPage() {
                     <th className="text-left py-3 px-4 font-semibold">Billing</th>
                     <th className="text-left py-3 px-4 font-semibold">Status</th>
                     <th className="text-left py-3 px-4 font-semibold">Dates</th>
+                    <th className="text-right py-3 px-4 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -203,6 +221,44 @@ export function ContractsPage() {
                         {contract.endDate && (
                           <> — {new Date(contract.endDate).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })}</>
                         )}
+                      </td>
+                      <td className="py-2.5 px-4 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            {contract.status === "draft" && (
+                              <DropdownMenuItem className="text-emerald-600" onClick={() => handleActivate(contract.id)}>
+                                <Play className="h-4 w-4 mr-2" /> Activate
+                              </DropdownMenuItem>
+                            )}
+                            {contract.status === "active" && (
+                              <DropdownMenuItem className="text-amber-600" onClick={() => handlePause(contract.id)}>
+                                <Pause className="h-4 w-4 mr-2" /> Pause
+                              </DropdownMenuItem>
+                            )}
+                            {contract.status === "paused" && (
+                              <DropdownMenuItem className="text-emerald-600" onClick={() => handleActivate(contract.id)}>
+                                <Play className="h-4 w-4 mr-2" /> Resume
+                              </DropdownMenuItem>
+                            )}
+                            {(contract.status === "active" || contract.status === "expired") && (
+                              <DropdownMenuItem className="text-blue-600" onClick={() => handleRenew(contract.id)}>
+                                <RefreshCw className="h-4 w-4 mr-2" /> Renew
+                              </DropdownMenuItem>
+                            )}
+                            {contract.status !== "terminated" && contract.status !== "renewed" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleTerminate(contract.id)}>
+                                  <XCircle className="h-4 w-4 mr-2" /> Terminate
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}

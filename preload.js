@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppInfo: () => ipcRenderer.invoke('app:info'),
   getDbPath: () => ipcRenderer.invoke('get-db-path'),
 
+  // Print
+  printPage: () => ipcRenderer.invoke('print-page'),
+  printToPDF: () => ipcRenderer.invoke('print-to-pdf'),
+
   // Sync operations
   getSyncStatus: () => ipcRenderer.invoke('sync:status'),
   triggerSync: () => ipcRenderer.invoke('sync:trigger'),

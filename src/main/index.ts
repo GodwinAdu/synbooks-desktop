@@ -16,6 +16,24 @@ import path from 'path';
 // This MUST be the first thing that runs
 if (require('electron-squirrel-startup')) app.quit();
 
+// ─── Single Instance Lock ─────────────────────────────────────────────────
+// Prevent multiple instances (which causes port conflict on 45678)
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  // Another instance is already running — quit this one
+  app.quit();
+} else {
+  // This is the first instance — handle second-instance events
+  app.on('second-instance', () => {
+    // Someone tried to run a second instance — show our window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 import { startLocalServer, stopLocalServer } from './server';
 import { initializeDatabase } from './database';
 import { SyncEngine } from './sync/sync-engine';
@@ -92,16 +110,11 @@ async function createWindow() {
     mainWindow = null;
   });
 
-  // macOS: close actually closes (no tray behavior)
-  // Windows/Linux: minimize to tray on close (if tray exists)
-  if (process.platform !== 'darwin') {
-    mainWindow.on('close', (event) => {
-      if (!(app as any).isQuitting) {
-        event.preventDefault();
-        mainWindow?.hide();
-      }
-    });
-  }
+  // On all platforms: closing the window quits the app
+  // (Tray is just a bonus for quick access, not required)
+  mainWindow.on('close', () => {
+    (app as any).isQuitting = true;
+  });
 }
 
 /** Show an error page when the app can't start properly */
@@ -162,6 +175,48 @@ function setupIPC() {
   // Database path
   ipcMain.handle('get-db-path', () => {
     return path.join(app.getPath('userData'), 'syncbooks.db');
+  });
+
+  // Print the current page
+  ipcMain.handle('print-page', () => {
+    if (mainWindow) {
+      mainWindow.webContents.print({ silent: false, printBackground: true });
+    }
+  });
+
+  // Print to PDF — loads the print-preview page in a hidden window, generates PDF, saves to Downloads
+  ipcMain.handle('print-to-pdf', async () => {
+    try {
+      const { BrowserWindow: BW } = require('electron');
+      const printWin = new BW({ show: false, width: 794, height: 1123 }); // A4 size in px
+      await printWin.loadURL(`http://127.0.0.1:${LOCAL_SERVER_PORT}/print-preview`);
+      
+      // Wait for content to render
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const pdfBuffer = await printWin.webContents.printToPDF({
+        printBackground: true,
+        pageSize: 'A4',
+        margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
+      });
+      
+      printWin.close();
+      
+      // Save to Downloads folder
+      const downloadsPath = app.getPath('downloads');
+      const fileName = `Invoice-${Date.now()}.pdf`;
+      const filePath = path.join(downloadsPath, fileName);
+      require('fs').writeFileSync(filePath, pdfBuffer);
+      
+      // Open the file in the default PDF viewer
+      const { shell } = require('electron');
+      shell.openPath(filePath);
+      
+      return { success: true, path: filePath };
+    } catch (err: any) {
+      log.error('printToPDF failed:', err);
+      return { success: false, error: err.message };
+    }
   });
 
   // Sync status
@@ -267,10 +322,7 @@ async function bootstrap() {
 app.whenReady().then(bootstrap);
 
 app.on('window-all-closed', () => {
-  // On macOS, keep app running in background
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  app.quit();
 });
 
 app.on('activate', () => {

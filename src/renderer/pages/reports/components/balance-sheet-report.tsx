@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReportHeader } from "./report-header";
+import { AccountDrillDownModal } from "./account-drilldown-modal";
 import { formatCurrency } from "@/lib/utils";
 import type { BalanceSheetData, AccountGroup } from "../types";
 
@@ -30,6 +31,9 @@ export function BalanceSheetReport() {
     setAsOfDate(date);
     fetchData(date);
   };
+
+  // Drill-down state
+  const [drillAccount, setDrillAccount] = useState<{ id: string; name: string } | null>(null);
 
   const handleExportCSV = () => {
     if (!data) return;
@@ -112,7 +116,7 @@ export function BalanceSheetReport() {
               ) : (
                 <>
                   {data.assetGroups.map((group, i) => (
-                    <GroupSection key={i} group={group} color="blue" />
+                    <GroupSection key={i} group={group} color="blue" onAccountClick={(id, name) => setDrillAccount({ id, name })} />
                   ))}
                   <Separator className="my-2" />
                   <TotalRow label="Total Assets" amount={data.totalAssets} color="text-blue-600" />
@@ -132,7 +136,7 @@ export function BalanceSheetReport() {
               ) : (
                 <>
                   {data.liabilityGroups.map((group, i) => (
-                    <GroupSection key={i} group={group} color="red" />
+                    <GroupSection key={i} group={group} color="red" onAccountClick={(id, name) => setDrillAccount({ id, name })} />
                   ))}
                   <Separator className="my-2" />
                   <TotalRow label="Total Liabilities" amount={data.totalLiabilities} color="text-red-600" />
@@ -148,7 +152,7 @@ export function BalanceSheetReport() {
             </CardHeader>
             <CardContent>
               {data.equityGroups.map((group, i) => (
-                <GroupSection key={i} group={group} color="purple" />
+                <GroupSection key={i} group={group} color="purple" onAccountClick={(id, name) => setDrillAccount({ id, name })} />
               ))}
               {/* Retained Earnings */}
               <div className="grid grid-cols-[1fr_auto] gap-4 py-1.5 pl-4 text-sm">
@@ -176,6 +180,17 @@ export function BalanceSheetReport() {
           </Card>
         </>
       ) : null}
+
+      {/* Account Drill-Down Modal */}
+      {drillAccount && (
+        <AccountDrillDownModal
+          open={!!drillAccount}
+          onClose={() => setDrillAccount(null)}
+          accountId={drillAccount.id}
+          accountName={drillAccount.name}
+          endDate={asOfDate}
+        />
+      )}
     </div>
   );
 }
@@ -189,14 +204,18 @@ function SummaryCard({ label, value, color }: { label: string; value: string; co
   );
 }
 
-function GroupSection({ group, color }: { group: AccountGroup; color: "blue" | "red" | "purple" }) {
+function GroupSection({ group, color, onAccountClick }: { group: AccountGroup; color: "blue" | "red" | "purple"; onAccountClick?: (id: string, name: string) => void }) {
   const colorClass = color === "blue" ? "text-blue-600" : color === "red" ? "text-red-500" : "text-purple-600";
   return (
     <div className="mb-5">
       <p className={`text-xs font-semibold uppercase tracking-wider ${colorClass} mb-1`}>{group.subType}</p>
       {group.accounts.map((acc) => (
-        <div key={acc.id} className="grid grid-cols-[1fr_auto] gap-4 py-1.5 pl-4 text-sm hover:bg-muted/50 rounded transition-colors">
-          <span className="text-muted-foreground">{acc.name}</span>
+        <div
+          key={acc.id}
+          className="grid grid-cols-[1fr_auto] gap-4 py-1.5 pl-4 text-sm hover:bg-muted/50 rounded transition-colors cursor-pointer"
+          onClick={() => onAccountClick?.(acc.id, acc.name)}
+        >
+          <span className="text-muted-foreground hover:text-foreground hover:underline">{acc.name}</span>
           <span className="tabular-nums text-right">{formatCurrency(acc.amount)}</span>
         </div>
       ))}

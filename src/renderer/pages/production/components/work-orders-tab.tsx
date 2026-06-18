@@ -17,11 +17,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Factory, ClipboardList, CheckCircle2, TrendingUp } from "lucide-react";
+import { Plus, Search, Factory, ClipboardList, CheckCircle2, TrendingUp, Play, XCircle, Check, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import type { WorkOrder } from "../types";
 import { WO_STATUS_COLORS } from "../types";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 export function WorkOrdersTab() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
@@ -39,6 +42,33 @@ export function WorkOrdersTab() {
   };
 
   useEffect(() => { fetchWorkOrders(); }, []);
+
+  const handleStartProduction = async (woId: string) => {
+    try {
+      await api.post(`/production/work-orders/${woId}/start`, {});
+      toast.success("Production started! Materials consumed from inventory.");
+      fetchWorkOrders();
+    } catch (e: any) { toast.error(e.message || "Failed to start production"); }
+  };
+
+  const handleComplete = async (wo: WorkOrder) => {
+    try {
+      await api.post(`/production/work-orders/${wo.id}/complete`, {
+        completedQuantity: wo.quantity,
+        actualCost: wo.estimatedCost,
+      });
+      toast.success(`Work order completed. ${wo.quantity} units produced.`);
+      fetchWorkOrders();
+    } catch (e: any) { toast.error(e.message || "Failed to complete"); }
+  };
+
+  const handleCancel = async (woId: string) => {
+    try {
+      await api.post(`/production/work-orders/${woId}/cancel`, {});
+      toast.success("Work order cancelled. Materials returned to inventory.");
+      fetchWorkOrders();
+    } catch (e: any) { toast.error(e.message || "Failed to cancel"); }
+  };
 
   const filtered = workOrders.filter((wo) => {
     const matchSearch =
@@ -162,6 +192,7 @@ export function WorkOrdersTab() {
                     <th className="text-left py-3 px-4 font-semibold">Status</th>
                     <th className="text-left py-3 px-4 font-semibold">Due Date</th>
                     <th className="text-right py-3 px-4 font-semibold">Cost</th>
+                    <th className="text-right py-3 px-4 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -195,6 +226,34 @@ export function WorkOrdersTab() {
                         </td>
                         <td className="py-2.5 px-4 text-right tabular-nums">
                           {formatCurrency(wo.actualCost || wo.estimatedCost)}
+                        </td>
+                        <td className="py-2.5 px-4 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              {(wo.status === "draft" || wo.status === "planned") && (
+                                <DropdownMenuItem className="text-emerald-600" onClick={() => handleStartProduction(wo.id)}>
+                                  <Play className="h-4 w-4 mr-2" /> Start Production
+                                </DropdownMenuItem>
+                              )}
+                              {wo.status === "in_progress" && (
+                                <DropdownMenuItem className="text-blue-600" onClick={() => handleComplete(wo)}>
+                                  <Check className="h-4 w-4 mr-2" /> Mark Complete
+                                </DropdownMenuItem>
+                              )}
+                              {wo.status !== "completed" && wo.status !== "cancelled" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-600" onClick={() => handleCancel(wo.id)}>
+                                    <XCircle className="h-4 w-4 mr-2" /> Cancel
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </tr>
                     );

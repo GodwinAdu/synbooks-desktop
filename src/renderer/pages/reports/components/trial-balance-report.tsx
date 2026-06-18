@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReportHeader } from "./report-header";
+import { AccountDrillDownModal } from "./account-drilldown-modal";
 import { formatCurrency } from "@/lib/utils";
 import type { TrialBalanceData } from "../types";
 
@@ -33,6 +34,9 @@ export function TrialBalanceReport() {
     setEndDate(end);
     fetchData(start, end);
   };
+
+  // Drill-down state
+  const [drillAccount, setDrillAccount] = useState<{ id: string; name: string } | null>(null);
 
   const handleExportCSV = () => {
     if (!data) return;
@@ -104,7 +108,14 @@ export function TrialBalanceReport() {
                     {data.accounts.map((acc) => (
                       <tr key={acc.id} className="border-b hover:bg-muted/30 transition-colors">
                         <td className="py-2.5 px-4 font-mono text-xs text-muted-foreground">{acc.code || "—"}</td>
-                        <td className="py-2.5 px-4">{acc.name}</td>
+                        <td className="py-2.5 px-4">
+                          <span
+                            className="hover:text-primary hover:underline cursor-pointer"
+                            onClick={() => setDrillAccount({ id: acc.id, name: acc.name })}
+                          >
+                            {acc.name}
+                          </span>
+                        </td>
                         <td className="py-2.5 px-4">
                           <Badge variant="outline" className="text-xs capitalize">{acc.type}</Badge>
                         </td>
@@ -130,6 +141,18 @@ export function TrialBalanceReport() {
           </Card>
         </>
       ) : null}
+
+      {/* Account Drill-Down Modal */}
+      {drillAccount && (
+        <AccountDrillDownModal
+          open={!!drillAccount}
+          onClose={() => setDrillAccount(null)}
+          accountId={drillAccount.id}
+          accountName={drillAccount.name}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      )}
     </div>
   );
 }

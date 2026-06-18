@@ -1,7 +1,7 @@
 {
   "name": "syncbooks-desktop",
   "productName": "SyncBooks Desktop",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "description": "SyncBooks Accounting - Offline Desktop Application",
   "main": "dist/main/index.js",
   "author": "SyncBooks",

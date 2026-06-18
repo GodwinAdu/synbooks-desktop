@@ -9,7 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Edit, Trash2, Send, DollarSign } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Trash2, Send, DollarSign, FileDown, XCircle, AlertTriangle } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Invoice } from "../types";
 
@@ -27,19 +27,22 @@ export function getInvoiceColumns(actions: {
   onDelete?: (invoice: Invoice) => void;
   onSend?: (invoice: Invoice) => void;
   onRecordPayment?: (invoice: Invoice) => void;
+  onDownloadPDF?: (invoice: Invoice) => void;
+  onMarkOverdue?: (invoice: Invoice) => void;
+  onCancel?: (invoice: Invoice) => void;
 }): ColumnDef<Invoice>[] {
   return [
     {
       accessorKey: "invoiceNumber",
       header: "Invoice #",
-      cell: ({ row }) => <span className="font-medium">{row.getValue("invoiceNumber")}</span>,
+      cell: ({ row }) => <span className="font-mono font-semibold">{row.getValue("invoiceNumber")}</span>,
     },
     {
       accessorKey: "customerName",
       header: "Customer",
       cell: ({ row }) => {
         const customer = (row.original as any).customer;
-        return <span className="text-muted-foreground">{customer?.name || "—"}</span>;
+        return <span className="text-muted-foreground">{customer?.name || "Walk-in"}</span>;
       },
     },
     {
@@ -50,17 +53,35 @@ export function getInvoiceColumns(actions: {
     {
       accessorKey: "dueDate",
       header: "Due Date",
-      cell: ({ row }) => <span className="text-muted-foreground">{formatDate(row.getValue("dueDate"))}</span>,
+      cell: ({ row }) => {
+        const dueDate = row.getValue("dueDate") as string;
+        const isOverdue = dueDate && new Date(dueDate) < new Date() && row.original.status === "sent";
+        return (
+          <span className={isOverdue ? "text-red-600 font-medium" : "text-muted-foreground"}>
+            {formatDate(dueDate)}
+            {isOverdue && " ⚠️"}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "totalAmount",
       header: () => <div className="text-right">Amount</div>,
-      cell: ({ row }) => <div className="text-right font-medium">{formatCurrency(row.getValue("totalAmount"))}</div>,
+      cell: ({ row }) => <div className="text-right font-semibold">{formatCurrency(row.getValue("totalAmount"))}</div>,
     },
     {
-      accessorKey: "paidAmount",
-      header: () => <div className="text-right">Paid</div>,
-      cell: ({ row }) => <div className="text-right text-muted-foreground">{formatCurrency(row.getValue("paidAmount"))}</div>,
+      accessorKey: "balance",
+      header: () => <div className="text-right">Balance</div>,
+      cell: ({ row }) => {
+        const total = row.original.totalAmount || 0;
+        const paid = row.original.paidAmount || 0;
+        const balance = total - paid;
+        return (
+          <div className={`text-right font-medium ${balance > 0.01 ? "text-orange-600" : "text-muted-foreground"}`}>
+            {formatCurrency(balance)}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "status",
@@ -75,6 +96,9 @@ export function getInvoiceColumns(actions: {
       id: "actions",
       cell: ({ row }) => {
         const invoice = row.original;
+        const balance = (invoice.totalAmount || 0) - (invoice.paidAmount || 0);
+        const isPastDue = invoice.dueDate && new Date(invoice.dueDate) < new Date();
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -82,27 +106,49 @@ export function getInvoiceColumns(actions: {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              
               <DropdownMenuItem onClick={() => actions.onView?.(invoice)}>
                 <Eye className="h-4 w-4 mr-2" />View Details
               </DropdownMenuItem>
+
               {invoice.status === "draft" && (
                 <DropdownMenuItem onClick={() => actions.onEdit?.(invoice)}>
                   <Edit className="h-4 w-4 mr-2" />Edit
                 </DropdownMenuItem>
               )}
+
               {invoice.status === "draft" && (
                 <DropdownMenuItem onClick={() => actions.onSend?.(invoice)}>
                   <Send className="h-4 w-4 mr-2" />Mark as Sent
                 </DropdownMenuItem>
               )}
-              {(invoice.status === "sent" || invoice.status === "overdue") && (
+
+              {(invoice.status === "sent" || invoice.status === "overdue") && balance > 0.01 && (
                 <DropdownMenuItem onClick={() => actions.onRecordPayment?.(invoice)}>
                   <DollarSign className="h-4 w-4 mr-2" />Record Payment
                 </DropdownMenuItem>
               )}
+
+              {invoice.status === "sent" && isPastDue && (
+                <DropdownMenuItem onClick={() => actions.onMarkOverdue?.(invoice)}>
+                  <AlertTriangle className="h-4 w-4 mr-2" />Mark as Overdue
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuItem onClick={() => actions.onDownloadPDF?.(invoice)}>
+                <FileDown className="h-4 w-4 mr-2" />Print / PDF
+              </DropdownMenuItem>
+
               <DropdownMenuSeparator />
+
+              {invoice.status !== "cancelled" && invoice.status !== "paid" && (
+                <DropdownMenuItem className="text-amber-600" onClick={() => actions.onCancel?.(invoice)}>
+                  <XCircle className="h-4 w-4 mr-2" />Cancel
+                </DropdownMenuItem>
+              )}
+
               {invoice.status === "draft" && (
                 <DropdownMenuItem className="text-red-600" onClick={() => actions.onDelete?.(invoice)}>
                   <Trash2 className="h-4 w-4 mr-2" />Delete

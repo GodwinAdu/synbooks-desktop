@@ -223,3 +223,28 @@ invoicesRouter.post('/:id/record-payment', (req: AuthenticatedRequest, res: Resp
     res.status(500).json({ error: error.message });
   }
 });
+
+/**
+ * POST /api/invoices/check-overdue
+ * Auto-mark sent invoices past their due date as overdue
+ */
+invoicesRouter.post('/check-overdue', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const sentInvoices = invoiceRepo.find({
+      where: { organizationId: req.organizationId, del_flag: 0, status: 'sent' },
+    });
+
+    let marked = 0;
+    for (const inv of sentInvoices) {
+      if (inv.dueDate && inv.dueDate < today) {
+        invoiceRepo.update(inv.id, { status: 'overdue' });
+        marked++;
+      }
+    }
+
+    res.json({ success: true, marked, message: `${marked} invoice(s) marked as overdue` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});

@@ -32,6 +32,8 @@ export function ExpenseCreateForm({ onBack }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [vendors, setVendors] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     vendorId: "",
@@ -49,7 +51,7 @@ export function ExpenseCreateForm({ onBack }: Props) {
     paymentAccountId: "",
     // Additional
     isReimbursable: false,
-    project: "",
+    projectId: "",
     notes: "",
   });
 
@@ -58,6 +60,12 @@ export function ExpenseCreateForm({ onBack }: Props) {
   useEffect(() => {
     api.get("/vendors", { pageSize: 500 }).then((res: any) => setVendors(res.data || [])).catch(() => {});
     api.get("/accounts", { pageSize: 500 }).then((res: any) => setAccounts(Array.isArray(res) ? res : res.data || [])).catch(() => {});
+    api.get("/projects", { pageSize: 200 }).then((res: any) => setProjects(res.data || [])).catch(() => {});
+    // Load expense categories from database
+    api.get("/categories/expense").then((res: any) => {
+      const cats = Array.isArray(res) ? res : res.data || [];
+      setExpenseCategories(cats.map((c: any) => c.name));
+    }).catch(() => {});
   }, []);
 
   const updateField = (field: string, value: any) => {
@@ -86,7 +94,7 @@ export function ExpenseCreateForm({ onBack }: Props) {
         expenseAccountId: formData.expenseAccountId || undefined,
         paymentAccountId: formData.paymentAccountId || undefined,
         isReimbursable: formData.isReimbursable,
-        project: formData.project || undefined,
+        projectId: formData.projectId || undefined,
         notes: formData.notes || undefined,
       });
       toast.success("Expense saved successfully");
@@ -212,7 +220,16 @@ export function ExpenseCreateForm({ onBack }: Props) {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Category</Label>
-              <Input value={formData.category} onChange={e => updateField("category", e.target.value)} placeholder="e.g. Office Supplies, Travel" />
+              <select
+                value={formData.category}
+                onChange={e => updateField("category", e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+              >
+                <option value="">Select category</option>
+                {expenseCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
@@ -225,7 +242,7 @@ export function ExpenseCreateForm({ onBack }: Props) {
                 onChange={e => updateField("expenseAccountId", e.target.value)}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               >
-                <option value="">Select expense account</option>
+                <option value="">Default (Operating Expenses)</option>
                 {accounts.filter(a => a.accountType === "expense").map(a => (
                   <option key={a.id} value={a.id}>{a.accountCode} - {a.accountName}</option>
                 ))}
@@ -238,7 +255,7 @@ export function ExpenseCreateForm({ onBack }: Props) {
                 onChange={e => updateField("paymentAccountId", e.target.value)}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               >
-                <option value="">Select payment account</option>
+                <option value="">Default (Cash)</option>
                 {accounts.filter(a => a.accountType === "asset").map(a => (
                   <option key={a.id} value={a.id}>{a.accountCode} - {a.accountName}</option>
                 ))}
@@ -262,7 +279,16 @@ export function ExpenseCreateForm({ onBack }: Props) {
             </div>
             <div className="space-y-2">
               <Label>Project</Label>
-              <Input value={formData.project} onChange={e => updateField("project", e.target.value)} placeholder="Project name (optional)" />
+              <select
+                value={formData.projectId}
+                onChange={e => updateField("projectId", e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+              >
+                <option value="">No project</option>
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-2">
               <Label>Notes</Label>

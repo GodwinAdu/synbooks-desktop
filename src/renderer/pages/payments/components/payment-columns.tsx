@@ -2,14 +2,10 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, RotateCcw } from "lucide-react";
+import { MoreHorizontal, Eye, RotateCcw, Trash2, FileDown } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { PaymentReceived } from "../types";
 
@@ -21,19 +17,21 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 
 export function getPaymentColumns(actions: {
   onView?: (payment: PaymentReceived) => void;
+  onDownload?: (payment: PaymentReceived) => void;
   onRefund?: (payment: PaymentReceived) => void;
+  onDelete?: (payment: PaymentReceived) => void;
 }): ColumnDef<PaymentReceived>[] {
   return [
     {
       accessorKey: "paymentNumber",
-      header: "Payment #",
-      cell: ({ row }) => <span className="font-medium">{row.getValue("paymentNumber")}</span>,
+      header: "Receipt #",
+      cell: ({ row }) => <span className="font-mono font-semibold">{row.getValue("paymentNumber")}</span>,
     },
     {
       accessorKey: "customerName",
       header: "Customer",
       cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.getValue("customerName") || "—"}</span>
+        <span className="text-muted-foreground">{row.getValue("customerName") || "Walk-in"}</span>
       ),
     },
     {
@@ -47,9 +45,9 @@ export function getPaymentColumns(actions: {
       accessorKey: "paymentMethod",
       header: "Method",
       cell: ({ row }) => (
-        <span className="text-muted-foreground capitalize">
-          {row.getValue("paymentMethod") || "—"}
-        </span>
+        <Badge variant="outline" className="capitalize text-xs">
+          {(row.getValue("paymentMethod") as string || "cash").replace("_", " ")}
+        </Badge>
       ),
     },
     {
@@ -58,9 +56,9 @@ export function getPaymentColumns(actions: {
       cell: ({ row }) => {
         const invoiceNum = row.getValue("invoiceNumber") as string | undefined;
         return invoiceNum ? (
-          <span className="font-mono text-xs">{invoiceNum}</span>
+          <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{invoiceNum}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground text-xs">Standalone</span>
         );
       },
     },
@@ -93,16 +91,27 @@ export function getPaymentColumns(actions: {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => actions.onView?.(payment)}>
                 <Eye className="h-4 w-4 mr-2" />View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => actions.onDownload?.(payment)}>
+                <FileDown className="h-4 w-4 mr-2" />Download Receipt
               </DropdownMenuItem>
               {payment.status === "completed" && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="text-red-600" onClick={() => actions.onRefund?.(payment)}>
                     <RotateCcw className="h-4 w-4 mr-2" />Refund
+                  </DropdownMenuItem>
+                </>
+              )}
+              {payment.status === "pending" && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-red-600" onClick={() => actions.onDelete?.(payment)}>
+                    <Trash2 className="h-4 w-4 mr-2" />Delete
                   </DropdownMenuItem>
                 </>
               )}

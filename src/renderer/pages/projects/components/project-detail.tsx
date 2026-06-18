@@ -17,6 +17,8 @@ import { formatCurrency } from "@/lib/utils";
 import { ArrowLeft, Calendar, User, Building2, DollarSign } from "lucide-react";
 import { ProjectTasks } from "./project-tasks";
 import { ProjectFinancials } from "./project-financials";
+import { ProjectTeam } from "./project-team";
+import { ProjectMilestones } from "./project-milestones";
 import { STATUS_BG } from "../types";
 import type { Project } from "../types";
 
@@ -99,6 +101,8 @@ export function ProjectDetail() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="milestones">Milestones</TabsTrigger>
+          <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="financials">Financials</TabsTrigger>
         </TabsList>
 
@@ -108,6 +112,14 @@ export function ProjectDetail() {
 
         <TabsContent value="tasks" className="mt-4">
           <ProjectTasks projectId={project.id} />
+        </TabsContent>
+
+        <TabsContent value="milestones" className="mt-4">
+          <ProjectMilestones projectId={project.id} />
+        </TabsContent>
+
+        <TabsContent value="team" className="mt-4">
+          <ProjectTeam projectId={project.id} managerId={project.managerId} />
         </TabsContent>
 
         <TabsContent value="financials" className="mt-4">

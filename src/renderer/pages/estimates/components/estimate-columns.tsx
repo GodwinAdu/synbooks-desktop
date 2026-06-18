@@ -2,14 +2,10 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, FileText, Trash2 } from "lucide-react";
+import { MoreHorizontal, Eye, FileText, Trash2, Send, CheckCircle, XCircle } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Estimate } from "../types";
 
@@ -17,13 +13,16 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
   sent: { label: "Sent", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   accepted: { label: "Accepted", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
-  rejected: { label: "Rejected", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  declined: { label: "Declined", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   expired: { label: "Expired", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   converted: { label: "Converted", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
 };
 
 export function getEstimateColumns(actions: {
   onView?: (estimate: Estimate) => void;
+  onSend?: (estimate: Estimate) => void;
+  onAccept?: (estimate: Estimate) => void;
+  onDecline?: (estimate: Estimate) => void;
   onConvert?: (estimate: Estimate) => void;
   onDelete?: (estimate: Estimate) => void;
 }): ColumnDef<Estimate>[] {
@@ -31,7 +30,7 @@ export function getEstimateColumns(actions: {
     {
       accessorKey: "estimateNumber",
       header: "Estimate #",
-      cell: ({ row }) => <span className="font-medium">{row.getValue("estimateNumber")}</span>,
+      cell: ({ row }) => <span className="font-mono font-semibold">{row.getValue("estimateNumber")}</span>,
     },
     {
       accessorKey: "customerName",
@@ -76,6 +75,8 @@ export function getEstimateColumns(actions: {
       id: "actions",
       cell: ({ row }) => {
         const estimate = row.original;
+        const canConvert = !["declined", "expired", "converted"].includes(estimate.status);
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -83,18 +84,33 @@ export function getEstimateColumns(actions: {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => actions.onView?.(estimate)}>
                 <Eye className="h-4 w-4 mr-2" />View Details
               </DropdownMenuItem>
-              {estimate.status === "accepted" && (
+              {estimate.status === "draft" && (
+                <DropdownMenuItem onClick={() => actions.onSend?.(estimate)}>
+                  <Send className="h-4 w-4 mr-2" />Mark as Sent
+                </DropdownMenuItem>
+              )}
+              {estimate.status === "sent" && (
+                <>
+                  <DropdownMenuItem onClick={() => actions.onAccept?.(estimate)}>
+                    <CheckCircle className="h-4 w-4 mr-2" />Accept
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => actions.onDecline?.(estimate)}>
+                    <XCircle className="h-4 w-4 mr-2" />Decline
+                  </DropdownMenuItem>
+                </>
+              )}
+              {canConvert && (
                 <DropdownMenuItem onClick={() => actions.onConvert?.(estimate)}>
                   <FileText className="h-4 w-4 mr-2" />Convert to Invoice
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              {estimate.status === "draft" && (
+              {(estimate.status === "draft" || estimate.status === "declined") && (
                 <DropdownMenuItem className="text-red-600" onClick={() => actions.onDelete?.(estimate)}>
                   <Trash2 className="h-4 w-4 mr-2" />Delete
                 </DropdownMenuItem>

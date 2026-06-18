@@ -10,7 +10,7 @@ import {
   ShoppingBag, FileCheck, Users, DollarSign, Calculator,
   Package, History, Clock, Calendar, Settings, Briefcase,
   Target, Building, MonitorSmartphone, Boxes,
-  Bell, Warehouse, Factory, Truck, FileSignature, type LucideIcon,
+  Bell, Warehouse, Factory, Truck, FileSignature, HelpCircle, type LucideIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -193,5 +193,11 @@ export const navItems: NavItem[] = [
     url: "/settings",
     icon: Settings,
     description: "Company & user settings",
+  },
+  {
+    title: "Help",
+    url: "/help",
+    icon: HelpCircle,
+    description: "Guides, FAQs & shortcuts",
   },
 ];

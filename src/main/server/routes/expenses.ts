@@ -9,6 +9,7 @@ import { postExpenseToGL } from '../services/gl-posting';
 
 export const expensesRouter = Router();
 const expenseRepo = new Repository<any>('expenses');
+const vendorRepo = new Repository<any>('vendors');
 
 expensesRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
   const { page = '1', pageSize = '20', status, vendorId, projectId } = req.query;
@@ -20,6 +21,11 @@ expensesRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
   const result = expenseRepo.findPaginated({
     where, orderBy: 'date', order: 'DESC',
     page: parseInt(page as string), pageSize: parseInt(pageSize as string),
+  });
+  // Enrich with vendor name
+  result.data = result.data.map((exp: any) => {
+    const vendor = exp.vendorId ? vendorRepo.findById(exp.vendorId) : null;
+    return { ...exp, vendorName: vendor?.name || '' };
   });
   res.json(result);
 });
@@ -79,8 +85,38 @@ expensesRouter.post('/:id/approve', (req: AuthenticatedRequest, res: Response) =
   }
   expenseRepo.update(req.params.id, { status: 'approved', approvedBy: req.userId, approvedAt: new Date().toISOString() });
 
-  // Auto-post to GL (Debit Expense, Credit Bank/Cash)
-  postExpenseToGL(req.params.id, req.organizationId!, existing, req.userId!);
-
   res.json({ success: true, message: 'Expense approved' });
+});
+
+// POST /:id/mark-paid — mark approved expense as paid (posts to GL)
+expensesRouter.post('/:id/mark-paid', (req: AuthenticatedRequest, res: Response) => {
+  const existing = expenseRepo.findById(req.params.id);
+  if (!existing || existing.organizationId !== req.organizationId) {
+    res.status(404).json({ error: 'Expense not found' });
+    return;
+  }
+  if (existing.status !== 'approved') {
+    res.status(400).json({ error: 'Only approved expenses can be marked as paid' });
+    return;
+  }
+  expenseRepo.update(req.params.id, { status: 'paid', modifiedBy: req.userId });
+  // Post to GL
+  postExpenseToGL(req.params.id, req.organizationId!, existing, req.userId!);
+  res.json({ success: true, message: 'Expense marked as paid' });
+});
+
+// POST /:id/reject
+expensesRouter.post('/:id/reject', (req: AuthenticatedRequest, res: Response) => {
+  const existing = expenseRepo.findById(req.params.id);
+  if (!existing || existing.organizationId !== req.organizationId) {
+    res.status(404).json({ error: 'Expense not found' });
+    return;
+  }
+  expenseRepo.update(req.params.id, { 
+    status: 'rejected', 
+    rejectedBy: req.userId, 
+    rejectedAt: new Date().toISOString(),
+    rejectionReason: req.body.reason || ''
+  });
+  res.json({ success: true, message: 'Expense rejected' });
 });

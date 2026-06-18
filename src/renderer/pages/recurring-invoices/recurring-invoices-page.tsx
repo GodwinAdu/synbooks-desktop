@@ -14,12 +14,14 @@ import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { RecurringInvoiceTable } from "./components/recurring-invoice-table";
 import { RecurringInvoiceCreateForm } from "./components/recurring-invoice-create-form";
+import { RecurringInvoiceDetail } from "./components/recurring-invoice-detail";
 import type { RecurringInvoice } from "./types";
 
 export function RecurringInvoicesPage() {
   const [templates, setTemplates] = useState<RecurringInvoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"list" | "create">("list");
+  const [view, setView] = useState<"list" | "create" | "detail">("list");
+  const [selectedTemplate, setSelectedTemplate] = useState<RecurringInvoice | null>(null);
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -39,6 +41,15 @@ export function RecurringInvoicesPage() {
     return <RecurringInvoiceCreateForm onBack={() => { setView("list"); loadTemplates(); }} />;
   }
 
+  if (view === "detail" && selectedTemplate) {
+    return (
+      <RecurringInvoiceDetail
+        template={selectedTemplate}
+        onBack={() => { setView("list"); loadTemplates(); }}
+      />
+    );
+  }
+
   const totalTemplates = templates.length;
   const active = templates.filter(t => t.isActive).length;
   const nextDue = templates
@@ -49,7 +60,7 @@ export function RecurringInvoicesPage() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <Heading title="Recurring Invoices" description="Automate repetitive invoice generation" />
-        <Button onClick={() => setView("create")}>
+        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setView("create")}>
           <Plus className="h-4 w-4 mr-2" />
           New Template
         </Button>
@@ -103,6 +114,7 @@ export function RecurringInvoicesPage() {
         templates={templates}
         loading={loading}
         onRefresh={loadTemplates}
+        onView={(t) => { setSelectedTemplate(t); setView("detail"); }}
       />
     </div>
   );

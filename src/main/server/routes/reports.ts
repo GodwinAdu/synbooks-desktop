@@ -44,7 +44,7 @@ reportsRouter.get('/profit-loss', (req: AuthenticatedRequest, res: Response) => 
       const st = acc.subType || 'General';
       if (!map.has(st)) map.set(st, { subType: st, accounts: [], subtotal: 0 });
       const group = map.get(st)!;
-      group.accounts.push({ id: acc.id, name: acc.name, amount: acc.amount });
+      group.accounts.push({ id: acc.id, name: acc.accountName || acc.name, amount: acc.amount });
       group.subtotal += acc.amount;
     }
     return Array.from(map.values());
@@ -95,7 +95,7 @@ reportsRouter.get('/balance-sheet', (req: AuthenticatedRequest, res: Response) =
       const st = acc.subType || 'General';
       if (!map.has(st)) map.set(st, { subType: st, accounts: [], subtotal: 0 });
       const group = map.get(st)!;
-      group.accounts.push({ id: acc.id, name: acc.name, amount: acc.amount });
+      group.accounts.push({ id: acc.id, name: acc.accountName || acc.name, amount: acc.amount });
       group.subtotal += acc.amount;
     }
     return Array.from(map.values());
@@ -153,8 +153,11 @@ reportsRouter.get('/trial-balance', (req: AuthenticatedRequest, res: Response) =
   const totalDebit = accounts.reduce((s: number, a: any) => s + (a.totalDebit || 0), 0);
   const totalCredit = accounts.reduce((s: number, a: any) => s + (a.totalCredit || 0), 0);
 
+  // Map accountName → name for frontend compatibility
+  const mappedAccounts = accounts.map((a: any) => ({ ...a, name: a.accountName || a.name }));
+
   res.json({
-    accounts,
+    accounts: mappedAccounts,
     totalDebit,
     totalCredit,
     isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
@@ -302,4 +305,246 @@ reportsRouter.get('/tax-summary', (req: AuthenticatedRequest, res: Response) => 
     startDate: (startDate as string) || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
     endDate: (endDate as string) || new Date().toISOString().slice(0, 10),
   });
+});
+
+
+// ─── General Ledger Report (transaction history by account) ──────────────────
+reportsRouter.get('/general-ledger-report', (req: AuthenticatedRequest, res: Response) => {
+  const { startDate, endDate, accountId } = req.query;
+  const orgId = req.organizationId;
+  const params: any[] = [orgId];
+  let dateFilter = '';
+  let accountFilter = '';
+  if (startDate) { dateFilter += ' AND gl.transactionDate >= ?'; params.push(startDate); }
+  if (endDate) { dateFilter += ' AND gl.transactionDate <= ?'; params.push(endDate); }
+  if (accountId) { accountFilter = ' AND gl.accountId = ?'; params.push(accountId); }
+
+  const entries = dbAll(`
+    SELECT gl.*, a.accountName, a.accountCode, a.accountType
+    FROM general_ledger gl
+    JOIN accounts a ON gl.accountId = a.id
+    WHERE gl.organizationId = ? AND gl.del_flag = 0${dateFilter}${accountFilter}
+    ORDER BY gl.transactionDate DESC, gl.createdAt DESC
+    LIMIT 500
+  `, params);
+
+  // Get all accounts for filter dropdown
+  const accounts = dbAll(`SELECT id, accountName, accountCode, accountType FROM accounts WHERE organizationId = ? AND del_flag = 0 ORDER BY accountCode, accountName`, [orgId]);
+
+  const totalDebit = entries.reduce((s: number, e: any) => s + (e.debit || 0), 0);
+  const totalCredit = entries.reduce((s: number, e: any) => s + (e.credit || 0), 0);
+
+  res.json({
+    entries,
+    accounts,
+    totalDebit,
+    totalCredit,
+    startDate: (startDate as string) || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
+    endDate: (endDate as string) || new Date().toISOString().slice(0, 10),
+  });
+});
+
+// ─── Budget vs Actual ────────────────────────────────────────────────────────
+reportsRouter.get('/budget-vs-actual', (req: AuthenticatedRequest, res: Response) => {
+  const orgId = req.organizationId;
+
+  // Get all active budgets
+  const budgets = dbAll(`SELECT * FROM budgets WHERE organizationId = ? AND del_flag = 0 ORDER BY fiscalYear DESC`, [orgId]);
+
+  // For each budget, calculate actuals
+  const results = budgets.map((budget: any) => {
+    let lineItems: any[] = [];
+    try { lineItems = typeof budget.lineItems === 'string' ? JSON.parse(budget.lineItems) : (budget.lineItems || []); } catch {}
+
+    // Get actual expenses for the budget period
+    const actuals = dbAll(`
+      SELECT a.id, a.accountName, SUM(gl.debit - gl.credit) as actual
+      FROM general_ledger gl
+      JOIN accounts a ON gl.accountId = a.id
+      WHERE gl.organizationId = ? AND a.accountType = 'expense' AND gl.del_flag = 0
+        AND gl.transactionDate >= ? AND gl.transactionDate <= ?
+      GROUP BY a.id, a.accountName
+    `, [orgId, budget.startDate, budget.endDate]);
+
+    const actualMap = new Map(actuals.map((a: any) => [a.id, a.actual || 0]));
+
+    const enrichedLines = lineItems.map((item: any) => ({
+      ...item,
+      actual: actualMap.get(item.accountId) || 0,
+      variance: (item.amount || 0) - (actualMap.get(item.accountId) || 0),
+      variancePercent: item.amount > 0 ? (((item.amount - (actualMap.get(item.accountId) || 0)) / item.amount) * 100) : 0,
+    }));
+
+    const totalBudget = enrichedLines.reduce((s: number, i: any) => s + (i.amount || 0), 0);
+    const totalActual = enrichedLines.reduce((s: number, i: any) => s + (i.actual || 0), 0);
+
+    return {
+      id: budget.id,
+      name: budget.name,
+      fiscalYear: budget.fiscalYear,
+      startDate: budget.startDate,
+      endDate: budget.endDate,
+      status: budget.status,
+      lineItems: enrichedLines,
+      totalBudget,
+      totalActual,
+      totalVariance: totalBudget - totalActual,
+      utilizationPercent: totalBudget > 0 ? ((totalActual / totalBudget) * 100) : 0,
+    };
+  });
+
+  res.json({ budgets: results });
+});
+
+// ─── Changes in Equity (Equity Statement) ───────────────────────────────────
+reportsRouter.get('/equity-statement', (req: AuthenticatedRequest, res: Response) => {
+  const { startDate, endDate } = req.query;
+  const orgId = req.organizationId;
+  const params: any[] = [orgId];
+  let dateFilter = '';
+  if (startDate) { dateFilter += ' AND gl.transactionDate >= ?'; params.push(startDate); }
+  if (endDate) { dateFilter += ' AND gl.transactionDate <= ?'; params.push(endDate); }
+
+  // Opening equity balance (all equity accounts before startDate)
+  const openingParams: any[] = [orgId];
+  let openingFilter = '';
+  if (startDate) { openingFilter = ' AND gl.transactionDate < ?'; openingParams.push(startDate); }
+  const openingEquity = dbGet(`SELECT SUM(gl.credit - gl.debit) as total FROM general_ledger gl JOIN accounts a ON gl.accountId = a.id WHERE gl.organizationId = ? AND a.accountType = 'equity' AND gl.del_flag = 0${openingFilter}`, openingParams);
+
+  // Net income for the period (revenue - expenses)
+  const revenue = dbGet(`SELECT SUM(gl.credit - gl.debit) as total FROM general_ledger gl JOIN accounts a ON gl.accountId = a.id WHERE gl.organizationId = ? AND a.accountType = 'revenue' AND gl.del_flag = 0${dateFilter}`, params);
+  const expenses = dbGet(`SELECT SUM(gl.debit - gl.credit) as total FROM general_ledger gl JOIN accounts a ON gl.accountId = a.id WHERE gl.organizationId = ? AND a.accountType = 'expense' AND gl.del_flag = 0${dateFilter}`, params);
+  const netIncome = (revenue?.total || 0) - (expenses?.total || 0);
+
+  // Equity movements during the period (additional capital, dividends, etc.)
+  const equityMovements = dbAll(`
+    SELECT a.id, a.accountName, a.accountSubType,
+      SUM(gl.credit - gl.debit) as netMovement
+    FROM general_ledger gl
+    JOIN accounts a ON gl.accountId = a.id
+    WHERE gl.organizationId = ? AND a.accountType = 'equity' AND gl.del_flag = 0${dateFilter}
+    GROUP BY a.id, a.accountName, a.accountSubType
+    HAVING netMovement != 0
+    ORDER BY a.accountName
+  `, params);
+
+  const totalMovements = equityMovements.reduce((s: number, m: any) => s + (m.netMovement || 0), 0);
+  const closingEquity = (openingEquity?.total || 0) + totalMovements + netIncome;
+
+  res.json({
+    openingEquity: openingEquity?.total || 0,
+    netIncome,
+    equityMovements,
+    totalMovements,
+    closingEquity,
+    startDate: (startDate as string) || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
+    endDate: (endDate as string) || new Date().toISOString().slice(0, 10),
+  });
+});
+
+// ─── Financial Ratios ────────────────────────────────────────────────────────
+reportsRouter.get('/financial-ratios', (req: AuthenticatedRequest, res: Response) => {
+  const orgId = req.organizationId;
+
+  // Get account balances by type
+  const getBalance = (type: string, subTypes?: string[]) => {
+    let query = `SELECT SUM(CASE WHEN a.accountType IN ('asset','expense') THEN gl.debit - gl.credit ELSE gl.credit - gl.debit END) as total FROM general_ledger gl JOIN accounts a ON gl.accountId = a.id WHERE gl.organizationId = ? AND a.accountType = ? AND gl.del_flag = 0`;
+    const params: any[] = [orgId, type];
+    if (subTypes && subTypes.length > 0) {
+      query += ` AND a.accountSubType IN (${subTypes.map(() => '?').join(',')})`;
+      params.push(...subTypes);
+    }
+    return dbGet(query, params)?.total || 0;
+  };
+
+  // Current year P&L
+  const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const now = new Date().toISOString().slice(0, 10);
+  const revenue = dbGet(`SELECT SUM(gl.credit - gl.debit) as total FROM general_ledger gl JOIN accounts a ON gl.accountId = a.id WHERE gl.organizationId = ? AND a.accountType = 'revenue' AND gl.del_flag = 0 AND gl.transactionDate >= ?`, [orgId, yearStart])?.total || 0;
+  const expenses = dbGet(`SELECT SUM(gl.debit - gl.credit) as total FROM general_ledger gl JOIN accounts a ON gl.accountId = a.id WHERE gl.organizationId = ? AND a.accountType = 'expense' AND gl.del_flag = 0 AND gl.transactionDate >= ?`, [orgId, yearStart])?.total || 0;
+  const netIncome = revenue - expenses;
+
+  const totalAssets = getBalance('asset');
+  const totalLiabilities = getBalance('liability');
+  const totalEquity = getBalance('equity') + netIncome;
+  const currentAssets = getBalance('asset', ['cash', 'bank', 'accounts_receivable', 'inventory', 'prepaid', 'current_asset']);
+  const currentLiabilities = getBalance('liability', ['accounts_payable', 'accrued_expense', 'current_liability', 'credit_card']);
+  const inventory = getBalance('asset', ['inventory']);
+  const receivables = getBalance('asset', ['accounts_receivable']);
+
+  // COGS (if any cost_of_goods account exists)
+  const cogs = dbGet(`SELECT SUM(gl.debit - gl.credit) as total FROM general_ledger gl JOIN accounts a ON gl.accountId = a.id WHERE gl.organizationId = ? AND a.accountSubType IN ('cost_of_goods','cogs') AND gl.del_flag = 0 AND gl.transactionDate >= ?`, [orgId, yearStart])?.total || 0;
+  const grossProfit = revenue - cogs;
+
+  // Calculate ratios
+  const ratios = {
+    // Liquidity
+    currentRatio: currentLiabilities > 0 ? currentAssets / currentLiabilities : 0,
+    quickRatio: currentLiabilities > 0 ? (currentAssets - inventory) / currentLiabilities : 0,
+    cashRatio: currentLiabilities > 0 ? getBalance('asset', ['cash', 'bank']) / currentLiabilities : 0,
+
+    // Profitability
+    grossProfitMargin: revenue > 0 ? (grossProfit / revenue) * 100 : 0,
+    netProfitMargin: revenue > 0 ? (netIncome / revenue) * 100 : 0,
+    returnOnAssets: totalAssets > 0 ? (netIncome / totalAssets) * 100 : 0,
+    returnOnEquity: totalEquity > 0 ? (netIncome / totalEquity) * 100 : 0,
+
+    // Leverage
+    debtToEquity: totalEquity > 0 ? totalLiabilities / totalEquity : 0,
+    debtRatio: totalAssets > 0 ? totalLiabilities / totalAssets : 0,
+
+    // Efficiency
+    receivablesTurnover: receivables > 0 ? revenue / receivables : 0,
+    daysReceivablesOutstanding: receivables > 0 ? (receivables / revenue) * 365 : 0,
+
+    // Summary values
+    revenue,
+    expenses,
+    netIncome,
+    totalAssets,
+    totalLiabilities,
+    totalEquity,
+    currentAssets,
+    currentLiabilities,
+    grossProfit,
+  };
+
+  res.json(ratios);
+});
+
+
+// ─── Account Transactions (for drill-down modal) ─────────────────────────────
+reportsRouter.get('/account-transactions', (req: AuthenticatedRequest, res: Response) => {
+  const { accountId, startDate, endDate } = req.query;
+  const orgId = req.organizationId;
+  if (!accountId) { res.status(400).json({ error: 'accountId is required' }); return; }
+
+  const params: any[] = [orgId, accountId];
+  let dateFilter = '';
+  if (startDate) { dateFilter += ' AND gl.transactionDate >= ?'; params.push(startDate); }
+  if (endDate) { dateFilter += ' AND gl.transactionDate <= ?'; params.push(endDate); }
+
+  const entries = dbAll(`
+    SELECT gl.id, gl.transactionDate, gl.description, gl.referenceType, gl.referenceNumber,
+      gl.debit, gl.credit, gl.runningBalance, gl.createdAt
+    FROM general_ledger gl
+    WHERE gl.organizationId = ? AND gl.accountId = ? AND gl.del_flag = 0${dateFilter}
+    ORDER BY gl.transactionDate ASC, gl.createdAt ASC
+  `, params);
+
+  // Recalculate running balance in order
+  let balance = 0;
+  const account = dbGet(`SELECT accountType FROM accounts WHERE id = ?`, [accountId]);
+  const isDebitNormal = account?.accountType === 'asset' || account?.accountType === 'expense';
+
+  const withBalance = entries.map((e: any) => {
+    if (isDebitNormal) {
+      balance += (e.debit || 0) - (e.credit || 0);
+    } else {
+      balance += (e.credit || 0) - (e.debit || 0);
+    }
+    return { ...e, runningBalance: balance };
+  });
+
+  res.json({ data: withBalance });
 });

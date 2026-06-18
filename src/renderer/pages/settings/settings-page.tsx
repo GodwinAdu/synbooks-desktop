@@ -6,13 +6,14 @@
 
 import { useState, useMemo } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Settings as SettingsIcon, DollarSign, FileText, Receipt, Users, Cloud, Crown, Boxes, UserCog } from "lucide-react";
+import { Building2, Settings as SettingsIcon, DollarSign, FileText, Receipt, Users, Cloud, Crown, Boxes, UserCog, Database } from "lucide-react";
 import { CompanyTab } from "./components/company-tab";
 import { RegionalTab } from "./components/regional-tab";
 import { InvoiceTab } from "./components/invoice-tab";
 import { TaxTab } from "./components/tax-tab";
 import { PayrollTab } from "./components/payroll-tab";
 import { CloudSyncTab } from "./components/cloud-sync-tab";
+import { DataManagementTab } from "./components/data-management-tab";
 import { APP_VERSION, APP_NAME } from "@/lib/version";
 import { SubscriptionTab } from "./components/subscription-tab";
 import { ModulesTab } from "./components/modules-tab";
@@ -28,6 +29,7 @@ const BASE_TABS = [
   { value: "users", label: "Users & Roles", icon: UserCog },
   { value: "modules", label: "Modules", icon: Boxes },
   { value: "subscription", label: "Subscription", icon: Crown },
+  { value: "data", label: "Data", icon: Database },
 ] as const;
 
 const CLOUD_TAB = { value: "cloud" as const, label: "Cloud Sync", icon: Cloud };
@@ -69,6 +71,7 @@ export function SettingsPage() {
           {activeTab === "users" && <UsersTab />}
           {activeTab === "modules" && <ModulesTab />}
           {activeTab === "subscription" && <SubscriptionTab />}
+          {activeTab === "data" && <DataManagementTab />}
           {activeTab === "cloud" && showCloudTab && <CloudSyncTab />}
         </div>
       </Tabs>

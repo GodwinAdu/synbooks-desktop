@@ -84,7 +84,14 @@ export function CreditNoteCreateForm({ onBack }: Props) {
 
     setSubmitting(true);
     try {
-      // No API endpoint yet - save locally
+      await api.post("/credit-notes", {
+        ...formData,
+        lineItems,
+        subtotal,
+        taxAmount: taxTotal,
+        totalAmount: totalCredit,
+        status: "issued",
+      });
       toast.success("Credit note issued successfully");
       onBack();
     } catch (err: any) {

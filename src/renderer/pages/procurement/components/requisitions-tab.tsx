@@ -17,11 +17,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, FileText, Clock, CheckCircle2, DollarSign, Trash2 } from "lucide-react";
+import { Plus, Search, FileText, Clock, CheckCircle2, DollarSign, Trash2, MoreHorizontal, Check, X, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import type { Requisition } from "../types";
 import { REQ_STATUS_COLORS } from "../types";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: "bg-gray-100 text-gray-700",
@@ -46,16 +49,26 @@ export function RequisitionsTab() {
 
   useEffect(() => { fetchRequisitions(); }, []);
 
+  const handleApprove = async (id: string) => {
+    try { await api.post(`/procurement/requisitions/${id}/approve`, {}); toast.success("Requisition approved"); fetchRequisitions(); } catch (e: any) { toast.error(e.message || "Failed"); }
+  };
+  const handleReject = async (id: string) => {
+    try { await api.post(`/procurement/requisitions/${id}/reject`, {}); toast.success("Requisition rejected"); fetchRequisitions(); } catch (e: any) { toast.error(e.message || "Failed"); }
+  };
+  const handleConvertToPO = async (id: string) => {
+    try { const res: any = await api.post(`/procurement/requisitions/${id}/convert-to-po`, {}); toast.success(res.message || "Purchase Order created"); fetchRequisitions(); } catch (e: any) { toast.error(e.message || "Failed"); }
+  };
+
   const filtered = requisitions.filter((r) =>
     r.requisitionNumber.toLowerCase().includes(search.toLowerCase()) ||
-    r.requestedBy.toLowerCase().includes(search.toLowerCase()) ||
+    (r.requestedBy && r.requestedBy.toLowerCase().includes(search.toLowerCase())) ||
     (r.department && r.department.toLowerCase().includes(search.toLowerCase()))
   );
 
   const totalReqs = requisitions.length;
-  const pendingApproval = requisitions.filter((r) => r.status === "submitted").length;
+  const pendingApproval = requisitions.filter((r) => r.status === "submitted" || r.status === "pending_approval").length;
   const approved = requisitions.filter((r) => r.status === "approved").length;
-  const totalValue = requisitions.reduce((s, r) => s + r.totalAmount, 0);
+  const totalValue = requisitions.reduce((s, r) => s + (r.totalAmount || r.totalEstimatedAmount || 0), 0);
 
   return (
     <div className="space-y-4">
@@ -151,6 +164,7 @@ export function RequisitionsTab() {
                     <th className="text-left py-3 px-4 font-semibold">Priority</th>
                     <th className="text-left py-3 px-4 font-semibold">Status</th>
                     <th className="text-left py-3 px-4 font-semibold">Required Date</th>
+                    <th className="text-right py-3 px-4 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -172,6 +186,34 @@ export function RequisitionsTab() {
                       </td>
                       <td className="py-2.5 px-4 text-muted-foreground text-xs">
                         {req.requiredDate ? new Date(req.requiredDate).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                      </td>
+                      <td className="py-2.5 px-4 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            {(req.status === "draft" || req.status === "submitted" || req.status === "pending_approval") && (
+                              <DropdownMenuItem className="text-emerald-600" onClick={() => handleApprove(req.id)}>
+                                <Check className="h-4 w-4 mr-2" /> Approve
+                              </DropdownMenuItem>
+                            )}
+                            {(req.status === "draft" || req.status === "submitted" || req.status === "pending_approval") && (
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleReject(req.id)}>
+                                <X className="h-4 w-4 mr-2" /> Reject
+                              </DropdownMenuItem>
+                            )}
+                            {req.status === "approved" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-blue-600" onClick={() => handleConvertToPO(req.id)}>
+                                  <ShoppingBag className="h-4 w-4 mr-2" /> Convert to PO
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}

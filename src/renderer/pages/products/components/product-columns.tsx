@@ -9,25 +9,32 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Edit, Trash2, PackagePlus } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Trash2, PackagePlus, Power, Layers, Package } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 export interface Product {
   id: string;
   sku?: string;
   name: string;
-  type?: "product" | "service" | "bundle";
+  type?: "product" | "service" | "bundle" | "raw_material" | "finished_good";
   price: number;
   sellingPrice?: number;
+  costPrice?: number;
   stock?: number;
+  currentStock?: number;
   reorderLevel?: number;
   status?: "active" | "inactive" | "discontinued";
+  trackInventory?: boolean;
+  hasVariants?: boolean;
+  variants?: any[];
 }
 
 const typeConfig: Record<string, { label: string; className: string }> = {
   product: { label: "Product", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   service: { label: "Service", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
   bundle: { label: "Bundle", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  raw_material: { label: "Raw Material", className: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" },
+  finished_good: { label: "Finished Good", className: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" },
 };
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -40,6 +47,7 @@ export function getProductColumns(actions: {
   onView?: (product: Product) => void;
   onEdit?: (product: Product) => void;
   onAdjustStock?: (product: Product) => void;
+  onToggleStatus?: (product: Product) => void;
   onDelete?: (product: Product) => void;
 }): ColumnDef<Product>[] {
   return [
@@ -51,7 +59,27 @@ export function getProductColumns(actions: {
     {
       accessorKey: "name",
       header: "Name",
-      cell: ({ row }) => <span className="font-medium">{row.getValue("name")}</span>,
+      cell: ({ row }) => {
+        const hasVariants = row.original.hasVariants;
+        const isBundle = row.original.type === "bundle";
+        return (
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{row.getValue("name")}</span>
+            {hasVariants && (
+              <Badge variant="outline" className="text-xs">
+                <Layers className="h-3 w-3 mr-1" />
+                {row.original.variants?.length || 0}
+              </Badge>
+            )}
+            {isBundle && (
+              <Badge variant="outline" className="text-xs">
+                <Package className="h-3 w-3 mr-1" />
+                Bundle
+              </Badge>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "type",
@@ -71,14 +99,23 @@ export function getProductColumns(actions: {
       },
     },
     {
-      accessorKey: "stock",
+      accessorKey: "costPrice",
+      header: () => <div className="text-right">Cost</div>,
+      cell: ({ row }) => {
+        const cost = row.original.costPrice ?? 0;
+        return <div className="text-right text-muted-foreground">{formatCurrency(cost)}</div>;
+      },
+    },
+    {
+      id: "stock",
       header: () => <div className="text-right">Stock</div>,
       cell: ({ row }) => {
-        const stock = row.original.stock;
+        const stock = row.original.currentStock ?? row.original.stock;
         const reorderLevel = row.original.reorderLevel || 0;
-        const isLow = stock != null && stock <= reorderLevel;
+        const isLow = stock != null && stock > 0 && stock <= reorderLevel;
+        const isOut = stock != null && stock <= 0;
         return (
-          <div className={`text-right ${isLow ? "text-red-600 font-medium" : ""}`}>
+          <div className={`text-right font-medium ${isOut ? "text-red-600" : isLow ? "text-amber-600" : ""}`}>
             {stock ?? "—"}
           </div>
         );
@@ -97,6 +134,7 @@ export function getProductColumns(actions: {
       id: "actions",
       cell: ({ row }) => {
         const product = row.original;
+        const isActive = (product.status || "active") === "active";
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -116,6 +154,10 @@ export function getProductColumns(actions: {
                 <PackagePlus className="h-4 w-4 mr-2" />Adjust Stock
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => actions.onToggleStatus?.(product)}>
+                <Power className="h-4 w-4 mr-2" />
+                {isActive ? "Deactivate" : "Activate"}
+              </DropdownMenuItem>
               <DropdownMenuItem className="text-red-600" onClick={() => actions.onDelete?.(product)}>
                 <Trash2 className="h-4 w-4 mr-2" />Delete
               </DropdownMenuItem>

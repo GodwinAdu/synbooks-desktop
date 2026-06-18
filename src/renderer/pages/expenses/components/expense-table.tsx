@@ -1,8 +1,3 @@
-/**
- * Expense Table
- * Uses the shared DataTable component with TanStack React Table for sorting, search, and pagination.
- */
-
 import { DataTable } from "@/components/table";
 import { Receipt } from "lucide-react";
 import { getExpenseColumns } from "./expense-columns";
@@ -15,9 +10,10 @@ interface Props {
   expenses: Expense[];
   loading: boolean;
   onRefresh: () => void;
+  onView?: (expense: Expense) => void;
 }
 
-export function ExpenseTable({ expenses, loading, onRefresh }: Props) {
+export function ExpenseTable({ expenses, loading, onRefresh, onView }: Props) {
   if (loading) {
     return (
       <div className="space-y-3">
@@ -29,24 +25,36 @@ export function ExpenseTable({ expenses, loading, onRefresh }: Props) {
   }
 
   const columns = getExpenseColumns({
-    onView: (expense) => console.log("View expense", expense.id),
+    onView: (expense) => onView?.(expense),
     onApprove: async (expense) => {
       try {
         await api.post(`/expenses/${expense.id}/approve`);
         toast.success("Expense approved");
         onRefresh();
-      } catch (e: any) {
-        toast.error(e.message || "Failed to approve expense");
-      }
+      } catch (e: any) { toast.error(e.message || "Failed"); }
+    },
+    onMarkPaid: async (expense) => {
+      try {
+        await api.post(`/expenses/${expense.id}/mark-paid`);
+        toast.success("Expense marked as paid & posted to GL");
+        onRefresh();
+      } catch (e: any) { toast.error(e.message || "Failed"); }
+    },
+    onReject: async (expense) => {
+      if (!confirm(`Reject expense ${expense.expenseNumber}?`)) return;
+      try {
+        await api.post(`/expenses/${expense.id}/reject`);
+        toast.success("Expense rejected");
+        onRefresh();
+      } catch (e: any) { toast.error(e.message || "Failed"); }
     },
     onDelete: async (expense) => {
+      if (!confirm(`Delete expense ${expense.expenseNumber}?`)) return;
       try {
         await api.delete(`/expenses/${expense.id}`);
         toast.success("Expense deleted");
         onRefresh();
-      } catch (e: any) {
-        toast.error(e.message || "Failed to delete expense");
-      }
+      } catch (e: any) { toast.error(e.message || "Failed"); }
     },
   });
 
@@ -57,7 +65,7 @@ export function ExpenseTable({ expenses, loading, onRefresh }: Props) {
       searchKey="expenseNumber"
       searchPlaceholder="Search expenses..."
       pageSize={20}
-      emptyMessage="No expenses found. Record your first expense to start tracking spending."
+      emptyMessage="No expenses found. Record your first expense."
       emptyIcon={<Receipt className="size-10 text-muted-foreground/50 mb-2" />}
     />
   );

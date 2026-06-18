@@ -2,14 +2,28 @@
  * Product Detail View
  * Shows full product information in a read-only layout with info cards,
  * pricing, inventory, variants, and suppliers.
+ * Includes Deactivate/Activate toggle and stock adjustment.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { api } from "@/lib/api-client";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   ArrowLeft,
   Edit,
@@ -19,12 +33,16 @@ import {
   Layers,
   Ruler,
   Star,
+  Power,
+  PackagePlus,
+  Loader2,
 } from "lucide-react";
 
 interface Props {
   product: any;
   onBack: () => void;
   onEdit: () => void;
+  onRefresh?: () => void;
 }
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -41,8 +59,16 @@ const typeLabels: Record<string, string> = {
   finished_good: "Finished Good",
 };
 
-export function ProductDetail({ product, onBack, onEdit }: Props) {
+export function ProductDetail({ product, onBack, onEdit, onRefresh }: Props) {
   const status = statusConfig[product.status || "active"] || statusConfig.active;
+  const isActive = (product.status || "active") === "active";
+
+  // Stock adjustment dialog
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockAdjustment, setStockAdjustment] = useState<number>(0);
+  const [stockReason, setStockReason] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   const margin = useMemo(() => {
     const selling = product.sellingPrice || product.price || 0;
@@ -54,11 +80,47 @@ export function ProductDetail({ product, onBack, onEdit }: Props) {
   }, [product]);
 
   const sellingPrice = product.sellingPrice || product.price || 0;
+  const currentStock = product.currentStock ?? product.stock ?? 0;
   const isLowStock =
-    product.trackInventory &&
+    product.trackInventory !== false &&
     product.currentStock != null &&
     product.reorderLevel != null &&
     product.currentStock <= product.reorderLevel;
+
+  const handleToggleStatus = async () => {
+    const newStatus = isActive ? "inactive" : "active";
+    setToggling(true);
+    try {
+      await api.put(`/products/${product.id}`, { status: newStatus });
+      toast.success(`Product ${newStatus === "active" ? "activated" : "deactivated"}`);
+      onBack();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update status");
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const submitStockAdjustment = async () => {
+    if (stockAdjustment === 0) {
+      toast.error("Please enter a non-zero adjustment amount");
+      return;
+    }
+    setAdjusting(true);
+    try {
+      const result: any = await api.post(`/products/${product.id}/adjust-stock`, {
+        adjustment: stockAdjustment,
+        reason: stockReason || undefined,
+      });
+      toast.success(`Stock adjusted. New stock: ${result.newStock ?? "updated"}`);
+      setStockDialogOpen(false);
+      onBack();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to adjust stock");
+    } finally {
+      setAdjusting(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-6xl">
@@ -75,9 +137,35 @@ export function ProductDetail({ product, onBack, onEdit }: Props) {
             </Badge>
           </div>
         </div>
-        <Button variant="outline" onClick={onEdit}>
-          <Edit className="h-4 w-4 mr-2" /> Edit
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setStockAdjustment(0);
+              setStockReason("");
+              setStockDialogOpen(true);
+            }}
+          >
+            <PackagePlus className="h-4 w-4 mr-2" /> Adjust Stock
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleStatus}
+            disabled={toggling}
+          >
+            {toggling ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Power className="h-4 w-4 mr-2" />
+            )}
+            {isActive ? "Deactivate" : "Activate"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <Edit className="h-4 w-4 mr-2" /> Edit
+          </Button>
+        </div>
       </div>
       <Separator />
 
@@ -93,7 +181,10 @@ export function ProductDetail({ product, onBack, onEdit }: Props) {
       {/* Description */}
       {product.description && (
         <Card>
-          <CardContent className="pt-4">
+          <CardHeader>
+            <CardTitle className="text-sm">Description</CardTitle>
+          </CardHeader>
+          <CardContent>
             <p className="text-sm text-muted-foreground">{product.description}</p>
           </CardContent>
         </Card>
@@ -145,17 +236,19 @@ export function ProductDetail({ product, onBack, onEdit }: Props) {
         </Card>
 
         {/* Inventory Card */}
-        {product.trackInventory && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Inventory</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader>
+            <CardTitle>Inventory</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {product.trackInventory === false ? (
+              <p className="text-sm text-muted-foreground">Inventory tracking is disabled for this item.</p>
+            ) : (
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Current Stock</p>
                   <p className={`text-2xl font-bold ${isLowStock ? "text-red-600" : "text-emerald-600"}`}>
-                    {product.currentStock ?? product.stock ?? 0}
+                    {currentStock}
                   </p>
                   {isLowStock && (
                     <p className="text-xs text-red-500 mt-1">Below reorder level</p>
@@ -170,10 +263,59 @@ export function ProductDetail({ product, onBack, onEdit }: Props) {
                   <p className="text-lg font-semibold">{product.reorderQuantity ?? "—"}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Details Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Type</p>
+              <p className="font-medium">{typeLabels[product.type] || product.type || "Product"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Category</p>
+              <p className="font-medium">{product.category || product.categoryName || "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Unit</p>
+              <p className="font-medium">{product.unit || "pcs"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Barcode</p>
+              <p className="font-medium font-mono">{product.barcode || "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Taxable</p>
+              <p className="font-medium">{product.taxable ? "Yes" : "No"}</p>
+            </div>
+            {product.taxable && (
+              <div>
+                <p className="text-muted-foreground">Tax Rate</p>
+                <p className="font-medium">{product.taxRate || 0}%</p>
+              </div>
+            )}
+            {product.type === "service" && product.serviceType && (
+              <div>
+                <p className="text-muted-foreground">Service Type</p>
+                <p className="font-medium capitalize">{product.serviceType.replace(/_/g, " ")}</p>
+              </div>
+            )}
+            {product.type === "service" && product.duration && (
+              <div>
+                <p className="text-muted-foreground">Duration</p>
+                <p className="font-medium">{product.duration}</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Variants Table */}
       {product.hasVariants && product.variants && product.variants.length > 0 && (
@@ -269,6 +411,58 @@ export function ProductDetail({ product, onBack, onEdit }: Props) {
           </CardContent>
         </Card>
       )}
+
+      {/* Stock Adjustment Dialog */}
+      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adjust Stock</DialogTitle>
+            <DialogDescription>
+              Adjust stock for &ldquo;{product.name}&rdquo; (current: {currentStock})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Adjustment Amount</Label>
+              <Input
+                type="number"
+                value={stockAdjustment || ""}
+                onChange={(e) => setStockAdjustment(parseInt(e.target.value) || 0)}
+                placeholder="e.g. 10 to add, -5 to remove"
+              />
+              <p className="text-xs text-muted-foreground">
+                Use positive numbers to add stock, negative to remove.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Textarea
+                value={stockReason}
+                onChange={(e) => setStockReason(e.target.value)}
+                placeholder="e.g. Received shipment, Damaged goods..."
+                rows={2}
+              />
+            </div>
+            {stockAdjustment !== 0 && (
+              <div className="rounded-md bg-muted p-3 text-sm">
+                <span className="text-muted-foreground">New stock will be: </span>
+                <span className="font-semibold">
+                  {Math.max(0, currentStock + stockAdjustment)}
+                </span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStockDialogOpen(false)} disabled={adjusting}>
+              Cancel
+            </Button>
+            <Button onClick={submitStockAdjustment} disabled={adjusting || stockAdjustment === 0}>
+              {adjusting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Apply Adjustment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

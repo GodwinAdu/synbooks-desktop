@@ -38,7 +38,15 @@ import { syncRouter } from './routes/sync';
 import { productionRouter } from './routes/production';
 import { procurementRouter } from './routes/procurement';
 import { contractsRouter } from './routes/contracts';
+import { recurringInvoicesRouter } from './routes/recurring-invoices';
+import { recurringExpensesRouter } from './routes/recurring-expenses';
+import { estimatesRouter } from './routes/estimates';
+import { paymentsRouter } from './routes/payments';
+import { categoriesRouter } from './routes/categories';
+import { creditNotesRouter } from './routes/credit-notes';
+import { salesOrdersRouter } from './routes/sales-orders';
 import { licensingRouter } from './routes/licensing';
+import { stockAdjustmentsRouter } from './routes/stock-adjustments';
 import { rolesRouter } from './routes/roles';
 import { usersRouter } from './routes/users';
 import { localAuth } from './middleware/local-auth';
@@ -57,6 +65,20 @@ export async function startLocalServer(port: number): Promise<void> {
   // Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', mode: 'offline-desktop', timestamp: new Date().toISOString() });
+  });
+
+  // Print preview — serves the last stored print HTML
+  let printHtmlStore = '';
+  app.post('/api/settings/temp-print-store', (req, res) => {
+    printHtmlStore = req.body.html || '';
+    res.json({ success: true });
+  });
+  app.get('/print-preview', (_req, res) => {
+    if (printHtmlStore) {
+      res.type('html').send(printHtmlStore);
+    } else {
+      res.type('html').send('<html><body><h1>No document to preview</h1><a href="/">Go back</a></body></html>');
+    }
   });
 
   // Auth routes (login/register - no auth middleware)
@@ -91,6 +113,14 @@ export async function startLocalServer(port: number): Promise<void> {
   app.use('/api/production', localAuth, checkModuleAccess('production'), productionRouter);
   app.use('/api/procurement', localAuth, checkModuleAccess('procurement'), procurementRouter);
   app.use('/api/contracts', localAuth, checkModuleAccess('contracts'), contractsRouter);
+  app.use('/api/recurring-invoices', localAuth, checkModuleAccess('sales'), recurringInvoicesRouter);
+  app.use('/api/recurring-expenses', localAuth, checkModuleAccess('expenses'), recurringExpensesRouter);
+  app.use('/api/estimates', localAuth, checkModuleAccess('sales'), estimatesRouter);
+  app.use('/api/payments', localAuth, checkModuleAccess('sales'), paymentsRouter);
+  app.use('/api/categories', localAuth, categoriesRouter);
+  app.use('/api/credit-notes', localAuth, checkModuleAccess('sales'), creditNotesRouter);
+  app.use('/api/sales-orders', localAuth, checkModuleAccess('sales'), salesOrdersRouter);
+  app.use('/api/stock-adjustments', localAuth, checkModuleAccess('products'), stockAdjustmentsRouter);
   app.use('/api/licensing', localAuth, licensingRouter);
   app.use('/api/roles', localAuth, rolesRouter);
   app.use('/api/users', usersRouter); // Auth handled inside routes

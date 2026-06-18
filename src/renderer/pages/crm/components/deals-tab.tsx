@@ -120,9 +120,16 @@ export function DealsTab() {
 
 function CreateDealDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [contacts, setContacts] = useState<any[]>([]);
   const [form, setForm] = useState({
-    title: "", amount: "", stage: "qualification", probability: "25", expectedCloseDate: "", notes: "",
+    title: "", contactId: "", amount: "", stage: "qualification", probability: "25", expectedCloseDate: "", notes: "",
   });
+
+  useEffect(() => {
+    if (open) {
+      api.get("/crm/contacts", { pageSize: 200 }).then((res: any) => setContacts(res.data || [])).catch(() => {});
+    }
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,9 +140,10 @@ function CreateDealDialog({ open, onClose, onCreated }: { open: boolean; onClose
         ...form,
         amount: parseFloat(form.amount) || 0,
         probability: parseInt(form.probability) || 25,
+        contactId: form.contactId || null,
       });
       toast.success("Deal created");
-      setForm({ title: "", amount: "", stage: "qualification", probability: "25", expectedCloseDate: "", notes: "" });
+      setForm({ title: "", contactId: "", amount: "", stage: "qualification", probability: "25", expectedCloseDate: "", notes: "" });
       onCreated();
       onClose();
     } catch (err: any) {
@@ -153,6 +161,18 @@ function CreateDealDialog({ open, onClose, onCreated }: { open: boolean; onClose
           <div className="space-y-2">
             <Label>Deal Title *</Label>
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g., Enterprise License" required />
+          </div>
+          <div className="space-y-2">
+            <Label>Contact</Label>
+            <Select value={form.contactId || "none"} onValueChange={(v) => setForm({ ...form, contactId: v === "none" ? "" : v })}>
+              <SelectTrigger><SelectValue placeholder="Select contact (optional)" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No contact</SelectItem>
+                {contacts.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ""}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
