@@ -38,3 +38,29 @@ vendorsRouter.delete('/:id', (req: AuthenticatedRequest, res: Response) => {
   repo.softDelete(req.params.id, req.userId);
   res.json({ success: true, message: 'Vendor deleted' });
 });
+
+// ─── Vendor Transaction History ──────────────────────────────────────────────
+vendorsRouter.get('/:id/transactions', (req: AuthenticatedRequest, res: Response) => {
+  const existing = repo.findById(req.params.id);
+  if (!existing || existing.organizationId !== req.organizationId) { res.status(404).json({ error: 'Vendor not found' }); return; }
+
+  const { dbAll } = require('../../database');
+  const orgId = req.organizationId;
+  const vendorId = req.params.id;
+
+  const bills = dbAll(`SELECT id, billNumber, billDate, dueDate, totalAmount, paidAmount, status FROM bills WHERE organizationId = ? AND vendorId = ? AND del_flag = 0 ORDER BY billDate DESC`, [orgId, vendorId]);
+  const expenses = dbAll(`SELECT id, expenseNumber, date, amount, status, description FROM expenses WHERE organizationId = ? AND vendorId = ? AND del_flag = 0 ORDER BY date DESC`, [orgId, vendorId]);
+  const purchaseOrders = dbAll(`SELECT id, poNumber, orderDate, totalAmount, status FROM purchase_orders WHERE organizationId = ? AND vendorId = ? AND del_flag = 0 ORDER BY orderDate DESC`, [orgId, vendorId]);
+
+  const totalBilled = bills.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0);
+  const totalPaid = bills.reduce((s: number, b: any) => s + (b.paidAmount || 0), 0);
+  const totalExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+  const totalOutstanding = totalBilled - totalPaid;
+
+  res.json({
+    bills,
+    expenses,
+    purchaseOrders,
+    summary: { totalBilled, totalPaid, totalOutstanding, totalExpenses, billCount: bills.length, expenseCount: expenses.length },
+  });
+});

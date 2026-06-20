@@ -20,10 +20,25 @@ interface ReleaseInfo {
 export function UpdateBanner() {
   const [update, setUpdate] = useState<ReleaseInfo | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [updateDownloaded, setUpdateDownloaded] = useState(false);
 
   useEffect(() => {
     checkForUpdate();
     const interval = setInterval(checkForUpdate, CHECK_INTERVAL);
+
+    // Listen for IPC update events from electron-updater (main process)
+    const ipc = (window as any).electronAPI;
+    if (ipc?.onUpdateAvailable) {
+      ipc.onUpdateAvailable((info: any) => {
+        setUpdate({ version: info.version, url: "", name: `v${info.version}` });
+      });
+    }
+    if (ipc?.onUpdateDownloaded) {
+      ipc.onUpdateDownloaded(() => {
+        setUpdateDownloaded(true);
+      });
+    }
+
     return () => clearInterval(interval);
   }, []);
 
@@ -78,13 +93,29 @@ export function UpdateBanner() {
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
-          onClick={() => window.open(update.url, "_blank")}
-        >
-          <Download className="h-3 w-3 mr-1" /> Download
-        </Button>
+        {updateDownloaded ? (
+          <Button
+            size="sm"
+            className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => (window as any).electronAPI?.installUpdate?.()}
+          >
+            Install & Restart
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => {
+              if ((window as any).electronAPI?.downloadUpdate) {
+                (window as any).electronAPI.downloadUpdate();
+              } else if (update.url) {
+                window.open(update.url, "_blank");
+              }
+            }}
+          >
+            <Download className="h-3 w-3 mr-1" /> Download
+          </Button>
+        )}
         <button onClick={() => setDismissed(true)} className="text-emerald-400 hover:text-emerald-600">
           <X className="h-4 w-4" />
         </button>

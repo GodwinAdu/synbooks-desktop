@@ -47,6 +47,7 @@ import { creditNotesRouter } from './routes/credit-notes';
 import { salesOrdersRouter } from './routes/sales-orders';
 import { licensingRouter } from './routes/licensing';
 import { stockAdjustmentsRouter } from './routes/stock-adjustments';
+import { timeLeaveRouter } from './routes/time-leave';
 import { rolesRouter } from './routes/roles';
 import { usersRouter } from './routes/users';
 import { localAuth } from './middleware/local-auth';
@@ -98,6 +99,7 @@ export async function startLocalServer(port: number): Promise<void> {
   app.use('/api/products', localAuth, checkModuleAccess('products'), productsRouter);
   app.use('/api/employees', localAuth, checkModuleAccess('payroll'), employeesRouter);
   app.use('/api/payroll', localAuth, checkModuleAccess('payroll'), payrollRouter);
+  app.use('/api/time-leave', localAuth, checkModuleAccess('payroll'), timeLeaveRouter);
   app.use('/api/banking', localAuth, bankingRouter); // always available (banking module)
   app.use('/api/journal-entries', localAuth, journalEntriesRouter); // accounting - always available
   app.use('/api/general-ledger', localAuth, generalLedgerRouter); // accounting - always available

@@ -3,9 +3,11 @@
  * Uses the shared DataTable component with TanStack React Table for sorting, search, and pagination.
  */
 
+import { useState } from "react";
 import { DataTable } from "@/components/table";
 import { Users } from "lucide-react";
 import { getCustomerColumns, type Customer } from "./customer-columns";
+import { CustomerDetail } from "./customer-detail";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -17,6 +19,8 @@ interface Props {
 }
 
 export function CustomerTable({ customers, loading, onRefresh }: Props) {
+  const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -28,7 +32,7 @@ export function CustomerTable({ customers, loading, onRefresh }: Props) {
   }
 
   const columns = getCustomerColumns({
-    onView: (customer) => console.log("View customer", customer.id),
+    onView: (customer) => setViewCustomer(customer),
     onEdit: (customer) => console.log("Edit customer", customer.id),
     onDelete: async (customer) => {
       try {
@@ -43,13 +47,18 @@ export function CustomerTable({ customers, loading, onRefresh }: Props) {
 
   return (
     <DataTable
-      columns={columns}
-      data={customers}
-      searchKey="name"
-      searchPlaceholder="Search customers..."
-      pageSize={20}
-      emptyMessage="No customers found. Add your first customer to get started."
-      emptyIcon={<Users className="size-10 text-muted-foreground/50 mb-2" />}
-    />
+  return (
+    <>
+      <DataTable
+        columns={columns}
+        data={customers}
+        searchKey="name"
+        searchPlaceholder="Search customers..."
+        pageSize={20}
+        emptyMessage="No customers found. Add your first customer to get started."
+        emptyIcon={<Users className="size-10 text-muted-foreground/50 mb-2" />}
+      />
+      <CustomerDetail open={!!viewCustomer} onClose={() => setViewCustomer(null)} customer={viewCustomer} />
+    </>
   );
 }

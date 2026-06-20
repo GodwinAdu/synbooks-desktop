@@ -99,6 +99,11 @@ export function LeaveManagementPage() {
         setEmployees(active);
       })
       .catch(console.error);
+    // Load persisted leave requests
+    api
+      .get("/time-leave/leave-requests", { pageSize: 200 })
+      .then((res: any) => setRequests(res.data || []))
+      .catch(console.error);
   }, []);
 
   const days = useMemo(
@@ -106,7 +111,7 @@ export function LeaveManagementPage() {
     [startDate, endDate]
   );
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!employeeId) {
       toast.error("Please select an employee");
       return;
@@ -141,25 +146,35 @@ export function LeaveManagementPage() {
       createdAt: new Date().toISOString(),
     };
 
-    setRequests([request, ...requests]);
-    setReason("");
-    setStartDate("");
-    setEndDate("");
-    toast.success("Leave request submitted");
+    try {
+      const result: any = await api.post("/time-leave/leave-requests", {
+        employeeId, employeeName: name, leaveType, startDate, endDate, days, reason,
+      });
+      const saved = result.data || request;
+      setRequests([saved, ...requests]);
+      setReason("");
+      setStartDate("");
+      setEndDate("");
+      toast.success("Leave request submitted");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to submit leave request");
+    }
   };
 
-  const handleApprove = (id: string) => {
-    setRequests(
-      requests.map((r) => (r.id === id ? { ...r, status: "approved" } : r))
-    );
-    toast.success("Leave request approved");
+  const handleApprove = async (id: string) => {
+    try {
+      await api.post(`/time-leave/leave-requests/${id}/approve`, {});
+      setRequests(requests.map((r) => (r.id === id ? { ...r, status: "approved" } : r)));
+      toast.success("Leave request approved");
+    } catch (e: any) { toast.error(e.message || "Failed"); }
   };
 
-  const handleReject = (id: string) => {
-    setRequests(
-      requests.map((r) => (r.id === id ? { ...r, status: "rejected" } : r))
-    );
-    toast.success("Leave request rejected");
+  const handleReject = async (id: string) => {
+    try {
+      await api.post(`/time-leave/leave-requests/${id}/reject`, {});
+      setRequests(requests.map((r) => (r.id === id ? { ...r, status: "rejected" } : r)));
+      toast.success("Leave request rejected");
+    } catch (e: any) { toast.error(e.message || "Failed"); }
   };
 
   // Summary calculations

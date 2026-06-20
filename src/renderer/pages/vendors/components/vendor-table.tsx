@@ -3,9 +3,11 @@
  * Uses the shared DataTable component with TanStack React Table for sorting, search, and pagination.
  */
 
+import { useState } from "react";
 import { DataTable } from "@/components/table";
 import { Store } from "lucide-react";
 import { getVendorColumns, type Vendor } from "./vendor-columns";
+import { VendorDetail } from "./vendor-detail";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -17,6 +19,8 @@ interface Props {
 }
 
 export function VendorTable({ vendors, loading, onRefresh }: Props) {
+  const [viewVendor, setViewVendor] = useState<Vendor | null>(null);
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -28,7 +32,7 @@ export function VendorTable({ vendors, loading, onRefresh }: Props) {
   }
 
   const columns = getVendorColumns({
-    onView: (vendor) => console.log("View vendor", vendor.id),
+    onView: (vendor) => setViewVendor(vendor),
     onEdit: (vendor) => console.log("Edit vendor", vendor.id),
     onDelete: async (vendor) => {
       try {
@@ -42,14 +46,17 @@ export function VendorTable({ vendors, loading, onRefresh }: Props) {
   });
 
   return (
-    <DataTable
-      columns={columns}
-      data={vendors}
-      searchKey="name"
-      searchPlaceholder="Search vendors..."
-      pageSize={20}
-      emptyMessage="No vendors found. Add your first vendor to get started."
-      emptyIcon={<Store className="size-10 text-muted-foreground/50 mb-2" />}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={vendors}
+        searchKey="name"
+        searchPlaceholder="Search vendors..."
+        pageSize={20}
+        emptyMessage="No vendors found. Add your first vendor to get started."
+        emptyIcon={<Store className="size-10 text-muted-foreground/50 mb-2" />}
+      />
+      <VendorDetail open={!!viewVendor} onClose={() => setViewVendor(null)} vendor={viewVendor} />
+    </>
   );
 }

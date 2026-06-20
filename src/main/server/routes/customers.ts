@@ -39,3 +39,30 @@ customersRouter.delete('/:id', (req: AuthenticatedRequest, res: Response) => {
   repo.softDelete(req.params.id, req.userId);
   res.json({ success: true, message: 'Customer deleted' });
 });
+
+// ─── Customer Transaction History ────────────────────────────────────────────
+customersRouter.get('/:id/transactions', (req: AuthenticatedRequest, res: Response) => {
+  const existing = repo.findById(req.params.id);
+  if (!existing || existing.organizationId !== req.organizationId) { res.status(404).json({ error: 'Customer not found' }); return; }
+
+  const { dbAll } = require('../../database');
+  const orgId = req.organizationId;
+  const custId = req.params.id;
+
+  const invoices = dbAll(`SELECT id, invoiceNumber, invoiceDate, dueDate, totalAmount, paidAmount, status FROM invoices WHERE organizationId = ? AND customerId = ? AND del_flag = 0 ORDER BY invoiceDate DESC`, [orgId, custId]);
+  const payments = dbAll(`SELECT id, paymentNumber, paymentDate, amount, paymentMethod, status FROM payments WHERE organizationId = ? AND customerId = ? AND del_flag = 0 ORDER BY paymentDate DESC`, [orgId, custId]);
+  const creditNotes = dbAll(`SELECT id, creditNoteNumber, issueDate, totalAmount, status FROM credit_notes WHERE organizationId = ? AND customerId = ? AND del_flag = 0 ORDER BY issueDate DESC`, [orgId, custId]);
+  const estimates = dbAll(`SELECT id, estimateNumber, estimateDate, totalAmount, status FROM estimates WHERE organizationId = ? AND customerId = ? AND del_flag = 0 ORDER BY estimateDate DESC`, [orgId, custId]);
+
+  const totalInvoiced = invoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
+  const totalPaid = invoices.reduce((s: number, i: any) => s + (i.paidAmount || 0), 0);
+  const totalOutstanding = totalInvoiced - totalPaid;
+
+  res.json({
+    invoices,
+    payments,
+    creditNotes,
+    estimates,
+    summary: { totalInvoiced, totalPaid, totalOutstanding, invoiceCount: invoices.length, paymentCount: payments.length },
+  });
+});

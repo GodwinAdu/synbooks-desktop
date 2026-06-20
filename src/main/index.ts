@@ -303,6 +303,50 @@ async function bootstrap() {
     setupIPC();
 
     log.info('SyncBooks Desktop started successfully');
+
+    // 6. Auto-updater (checks for updates from GitHub releases)
+    if (!isDev) {
+      try {
+        const { autoUpdater } = require('electron-updater');
+        autoUpdater.logger = log;
+        autoUpdater.autoDownload = false; // Don't auto-download, just notify
+
+        autoUpdater.on('update-available', (info: any) => {
+          log.info('Update available:', info.version);
+          if (mainWindow) {
+            mainWindow.webContents.send('update-available', { version: info.version, releaseNotes: info.releaseNotes });
+          }
+        });
+
+        autoUpdater.on('update-downloaded', (info: any) => {
+          log.info('Update downloaded:', info.version);
+          if (mainWindow) {
+            mainWindow.webContents.send('update-downloaded', { version: info.version });
+          }
+        });
+
+        autoUpdater.on('error', (err: any) => {
+          log.error('Auto-updater error:', err?.message || err);
+        });
+
+        // Check for updates 10 seconds after startup
+        setTimeout(() => {
+          autoUpdater.checkForUpdates().catch((err: any) => {
+            log.warn('Update check failed (offline?):', err?.message);
+          });
+        }, 10000);
+
+        // IPC: User requests to download & install update
+        ipcMain.on('download-update', () => {
+          autoUpdater.downloadUpdate().catch((err: any) => log.error('Download update failed:', err));
+        });
+        ipcMain.on('install-update', () => {
+          autoUpdater.quitAndInstall(false, true);
+        });
+      } catch (err: any) {
+        log.warn('Auto-updater not available:', err?.message);
+      }
+    }
   } catch (error: any) {
     log.error('Failed to start app:', error);
     // Don't just quit — show error to user

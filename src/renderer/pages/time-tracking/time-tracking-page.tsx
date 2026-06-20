@@ -72,6 +72,11 @@ export function TimeTrackingPage() {
         setEmployees(active);
       })
       .catch(console.error);
+    // Load persisted time entries
+    api
+      .get("/time-leave/time-entries", { pageSize: 200 })
+      .then((res: any) => setEntries(res.data || []))
+      .catch(console.error);
   }, []);
 
   const hours = useMemo(
@@ -79,7 +84,7 @@ export function TimeTrackingPage() {
     [clockIn, clockOut]
   );
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!employeeId) {
       toast.error("Please select an employee");
       return;
@@ -97,25 +102,33 @@ export function TimeTrackingPage() {
     const name =
       emp?.name || `${emp?.firstName || ""} ${emp?.lastName || ""}`.trim() || "Unknown";
 
-    const entry: TimeEntry = {
-      id: Date.now().toString(),
-      employeeId,
-      employeeName: name,
-      date,
-      clockIn,
-      clockOut,
-      hours,
-      notes,
-    };
-
-    setEntries([entry, ...entries]);
-    setNotes("");
-    toast.success("Time entry added");
+    try {
+      const result: any = await api.post("/time-leave/time-entries", {
+        employeeId,
+        employeeName: name,
+        date,
+        clockIn,
+        clockOut,
+        hours,
+        notes,
+      });
+      const entry = result.data || { id: Date.now().toString(), employeeId, employeeName: name, date, clockIn, clockOut, hours, notes };
+      setEntries([entry, ...entries]);
+      setNotes("");
+      toast.success("Time entry added");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save time entry");
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setEntries(entries.filter((e) => e.id !== id));
-    toast.success("Entry removed");
+  const handleDelete = async (id: string) => {
+    try {
+      await api.delete(`/time-leave/time-entries/${id}`);
+      setEntries(entries.filter((e) => e.id !== id));
+      toast.success("Entry removed");
+    } catch {
+      setEntries(entries.filter((e) => e.id !== id));
+    }
   };
 
   // Weekly summary
