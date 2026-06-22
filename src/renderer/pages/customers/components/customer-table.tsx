@@ -46,8 +46,6 @@ export function CustomerTable({ customers, loading, onRefresh }: Props) {
   });
 
   return (
-    <DataTable
-  return (
     <>
       <DataTable
         columns={columns}
